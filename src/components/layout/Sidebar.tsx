@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard,
   Users,
@@ -25,6 +27,39 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname() || '/'
+
+  const [userName, setUserName] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('')
+  const [isLoadingUser, setIsLoadingUser] = useState(true)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      const user = data.user
+      setUserName(user?.user_metadata?.full_name || user?.email || '')
+      setUserRole(user?.user_metadata?.role || (user ? 'User' : 'Not signed in'))
+      setIsLoadingUser(false)
+    })
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user
+      setUserName(user?.user_metadata?.full_name || user?.email || '')
+      setUserRole(user?.user_metadata?.role || (user ? 'User' : 'Not signed in'))
+      setIsLoadingUser(false)
+    })
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
+  }, [])
+
+  const initials = useMemo(() => {
+    const name = userName.trim()
+    if (!name) return '??'
+    const parts = name.split(/\s+/)
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[1][0]).toUpperCase()
+  }, [userName])
 
   return (
     <div className="flex h-full w-64 flex-col bg-gradient-to-b from-slate-900 to-slate-800 border-r border-slate-700">
@@ -75,11 +110,15 @@ export function Sidebar() {
       <div className="border-t border-slate-700 p-4">
         <div className="flex items-center gap-3 rounded-lg bg-slate-700/50 p-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-sm font-bold text-white">
-            JD
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">John Doe</p>
-            <p className="text-xs text-slate-400 truncate">Admin</p>
+            <p className="text-sm font-medium text-white truncate">
+              {isLoadingUser ? 'Loading...' : userName || 'Guest'}
+            </p>
+            <p className="text-xs text-slate-400 truncate">
+              {isLoadingUser ? 'Checking session' : userRole || 'Not signed in'}
+            </p>
           </div>
         </div>
       </div>
