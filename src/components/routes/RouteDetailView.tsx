@@ -154,6 +154,12 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0, sho
                 toast.error(result.error)
                 return
               }
+              if (result.alreadyCompleted) {
+                setLocalStatus('completed')
+                setElapsed(null)
+                router.refresh()
+                return
+              }
               setLocalStatus('completed')
               setElapsed(null)
               router.refresh()
@@ -204,6 +210,11 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0, sho
     const result = await completeRoute(route.id)
     if (result.error) {
       toast.error(result.error)
+    } else if (result.alreadyCompleted) {
+      toast.message('Route already completed.')
+      setLocalStatus('completed')
+      setElapsed(null)
+      router.refresh()
     } else {
       toast.success('Route completed! Great work!')
       setLocalStatus('completed')

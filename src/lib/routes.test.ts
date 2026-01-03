@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { optimizeRouteNearestNeighborWithIndices } from './routes'
+import { buildStopOrderIds, getCompletionPlan, optimizeRouteNearestNeighborWithIndices } from './routes'
 
 describe('optimizeRouteNearestNeighborWithIndices', () => {
   it('returns order indices that map to the original input order', () => {
@@ -32,5 +32,32 @@ describe('optimizeRouteNearestNeighborWithIndices', () => {
 
     const reordered = orderIndices.map((idx) => input[idx])
     expect(reordered.map((point) => point.id)).toEqual(ordered.map((point) => point.id))
+  })
+})
+
+describe('buildStopOrderIds', () => {
+  it('fills the new stop id into the ordered list', () => {
+    const orderedEntries = [{ stopId: 'stop-1' }, { stopId: null }, { stopId: 'stop-2' }]
+    const result = buildStopOrderIds(orderedEntries, 'new-stop')
+
+    expect(result).toEqual(['stop-1', 'new-stop', 'stop-2'])
+  })
+})
+
+describe('getCompletionPlan', () => {
+  it('short-circuits when the route is already completed', () => {
+    const plan = getCompletionPlan('completed', '2026-01-01T00:00:00Z')
+
+    expect(plan.alreadyCompleted).toBe(true)
+  })
+
+  it('returns timing metadata for incomplete routes', () => {
+    const plan = getCompletionPlan('in_progress', '2026-01-01T00:00:00Z')
+
+    expect(plan.alreadyCompleted).toBe(false)
+    if (!plan.alreadyCompleted) {
+      expect(plan.startIso).toBe('2026-01-01T00:00:00Z')
+      expect(plan.durationMinutes).toBeGreaterThanOrEqual(0)
+    }
   })
 })

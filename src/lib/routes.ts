@@ -69,3 +69,30 @@ export function optimizeRouteNearestNeighbor<T extends RoutePoint>(
 ): T[] {
   return optimizeRouteNearestNeighborWithIndices(points, origin).ordered
 }
+
+export function buildStopOrderIds(
+  orderedEntries: Array<{ stopId: string | null }>,
+  newStopId: string | null
+) {
+  return orderedEntries.map((entry) => entry.stopId ?? newStopId)
+}
+
+
+export function getCompletionPlan(status: string | null | undefined, startTime: string | null | undefined) {
+  if (status === 'completed') {
+    return { alreadyCompleted: true as const }
+  }
+
+  const endTime = new Date().toISOString()
+  const startIso = startTime || endTime
+  const startMs = new Date(startIso).getTime()
+  const endMs = new Date(endTime).getTime()
+  const durationMinutes = Math.max(0, Math.round((endMs - startMs) / 60000))
+
+  return {
+    alreadyCompleted: false as const,
+    startIso,
+    endTime,
+    durationMinutes,
+  }
+}

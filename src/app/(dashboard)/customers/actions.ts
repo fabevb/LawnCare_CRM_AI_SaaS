@@ -243,19 +243,7 @@ export async function deleteCustomer(customerId: string) {
       return { error: 'Failed to check route dependencies' }
     }
 
-    // Delete route stops first (cascade)
-    if (routeStops && routeStops.length > 0) {
-      const { error: deleteStopsError } = await supabase
-        .from('route_stops')
-        .delete()
-        .eq('customer_id', customerId)
-
-      if (deleteStopsError) {
-        console.error('Delete route stops error:', deleteStopsError)
-        return { error: 'Failed to remove customer from routes' }
-      }
-    }
-
+    // Route stops are removed by cascade.
     // Delete the customer
     const { error: deleteError } = await supabase
       .from('customers')

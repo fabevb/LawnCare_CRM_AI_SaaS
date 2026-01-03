@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { GOOGLE_MAPS_SERVER_API_KEY } from '@/lib/config'
 import { getShopLocation } from '@/lib/settings'
 import { haversineMiles } from '@/lib/geo'
-import { optimizeRouteNearestNeighborWithIndices } from '@/lib/routes'
+import { buildStopOrderIds, getCompletionPlan, optimizeRouteNearestNeighborWithIndices } from '@/lib/routes'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 const SERVICE_TIME_PER_STOP_MIN = 30
@@ -152,7 +152,6 @@ interface AddStopInput {
 
 export async function createRoute(input: CreateRouteInput) {
   const supabase = await createClient()
-
   // Fetch customer details to calculate route metrics
   const { data: customers } = await supabase
     .from('customers')
@@ -285,7 +284,6 @@ export async function updateRouteStatus(input: UpdateRouteStatusInput) {
 
 export async function addStopToRoute(input: AddStopInput) {
   const supabase = await createClient()
-
   // Fetch route with existing stops and customer coords
   const { data: route, error: routeError } = await supabase
     .from('routes')
@@ -400,31 +398,57 @@ export async function addStopToRoute(input: AddStopInput) {
 
   // Reorder existing stops and insert the new one
   const orderedEntries = orderIndices.map((idx) => optimizationInput[idx])
-  for (let i = 0; i < orderedEntries.length; i++) {
-    const entry = orderedEntries[i]
-    if (entry.stopId) {
+  const newEntry = orderedEntries.find((entry) => !entry.stopId)
+  let newStopId: string | null = null
+
+  if (newEntry) {
+    const { data: insertedStop, error: stopInsertError } = await supabase
+      .from('route_stops')
+      .insert({
+        route_id: input.routeId,
+        customer_id: newEntry.id,
+        stop_order: orderedEntries.length,
+        status: 'pending',
+        estimated_duration_minutes:
+          newEntry.estimated_duration_minutes ?? SERVICE_TIME_PER_STOP_MIN,
+      })
+      .select('id')
+      .single()
+
+    if (stopInsertError || !insertedStop) {
+      console.error('Add stop insert error:', stopInsertError)
+      return { error: 'Failed to add new stop' }
+    }
+
+    newStopId = insertedStop.id
+  }
+
+  const orderedStopIds = buildStopOrderIds(orderedEntries, newStopId)
+  if (orderedStopIds.some((id) => !id)) {
+    console.error('Add stop reorder error: missing stop id for ordering')
+    return { error: 'Failed to compute stop order' }
+  }
+
+  const { error: batchOrderError } = await supabase.rpc('update_route_stop_orders', {
+    route_id: input.routeId,
+    stop_ids: orderedStopIds,
+  })
+
+  if (batchOrderError) {
+    console.error('Add stop batch reorder error:', batchOrderError)
+    for (let i = 0; i < orderedEntries.length; i++) {
+      const stopId = orderedEntries[i].stopId ?? newStopId
+      if (!stopId) {
+        return { error: 'Failed to reorder stops' }
+      }
       const { error: stopUpdateError } = await supabase
         .from('route_stops')
         .update({ stop_order: i + 1 })
-        .eq('id', entry.stopId)
+        .eq('id', stopId)
 
       if (stopUpdateError) {
         console.error('Add stop reorder error:', stopUpdateError)
         return { error: 'Failed to reorder existing stops' }
-      }
-    } else {
-      const { error: stopInsertError } = await supabase.from('route_stops').insert({
-        route_id: input.routeId,
-        customer_id: entry.id,
-        stop_order: i + 1,
-        status: 'pending',
-        estimated_duration_minutes:
-          entry.estimated_duration_minutes ?? SERVICE_TIME_PER_STOP_MIN,
-      })
-
-      if (stopInsertError) {
-        console.error('Add stop insert error:', stopInsertError)
-        return { error: 'Failed to add new stop' }
       }
     }
   }
@@ -437,7 +461,6 @@ export async function addStopToRoute(input: AddStopInput) {
 
 export async function updateRouteStop(input: UpdateStopInput) {
   const supabase = await createClient()
-
   try {
     interface StopUpdate {
       status: string
@@ -519,11 +542,9 @@ export async function startRoute(routeId: string) {
 
 export async function completeRoute(routeId: string) {
   const admin = getServiceSupabase()
-  const supabase = await createClient()
-
   const { data: route, error: routeFetchError } = await admin
     .from('routes')
-    .select('start_time')
+    .select('status, start_time')
     .eq('id', routeId)
     .maybeSingle()
 
@@ -531,11 +552,12 @@ export async function completeRoute(routeId: string) {
     console.error('Fetch route failed:', routeFetchError)
   }
 
-  const endTime = new Date().toISOString()
-  const startIso = route?.start_time || endTime
-  const startMs = new Date(startIso).getTime()
-  const endMs = new Date(endTime).getTime()
-  const durationMinutes = Math.max(0, Math.round((endMs - startMs) / 60000))
+  const plan = getCompletionPlan(route?.status ?? null, route?.start_time ?? null)
+  if (plan.alreadyCompleted) {
+    return { success: true, alreadyCompleted: true }
+  }
+
+  const { startIso, endTime, durationMinutes } = plan
 
   const result = await updateRouteStatus({
     routeId,
@@ -587,25 +609,14 @@ export async function completeRoute(routeId: string) {
 }
 
 export async function deleteRoute(routeId: string) {
-  const supabase = await createClient()
-
   const adminCheck = await requireAdmin()
   if (!adminCheck.ok) {
     return { error: adminCheck.error }
   }
 
+  const supabase = await createClient()
+
   try {
-    // Delete route stops first
-    const { error: stopsError } = await supabase
-      .from('route_stops')
-      .delete()
-      .eq('route_id', routeId)
-
-    if (stopsError) {
-      console.error('Delete route stops error:', stopsError)
-      return { error: 'Failed to delete route stops' }
-    }
-
     // Delete route
     const { error: routeError } = await supabase
       .from('routes')
