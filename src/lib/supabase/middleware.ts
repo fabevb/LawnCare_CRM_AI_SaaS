@@ -1,6 +1,17 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const PUBLIC_PATHS = ['/login', '/inquiry']
+const PUBLIC_PREFIXES = ['/api', '/auth']
+
+function isPublicRoute(pathname: string) {
+  return (
+    PUBLIC_PATHS.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`)
+    ) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  )
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -36,18 +47,22 @@ export async function updateSession(request: NextRequest) {
   // issues with users being randomly logged out.
 
   // Touch the auth API so Supabase can refresh session cookies if needed.
-  await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-  // if (
-  //   !user &&
-  //   !request.nextUrl.pathname.startsWith('/login') &&
-  //   !request.nextUrl.pathname.startsWith('/auth')
-  // ) {
-  //   // no user, potentially respond by redirecting the user to the login page
-  //   const url = request.nextUrl.clone()
-  //   url.pathname = '/login'
-  //   return NextResponse.redirect(url)
-  // }
+  if (!user && !isPublicRoute(request.nextUrl.pathname)) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    url.searchParams.set(
+      'redirectedFrom',
+      `${request.nextUrl.pathname}${request.nextUrl.search}`
+    )
+    url.searchParams.set('reason', 'auth-required')
+    const response = NextResponse.redirect(url)
+    response.cookies.setAll(supabaseResponse.cookies.getAll())
+    return response
+  }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
   // creating a new response object with NextResponse.next() make sure to:
@@ -64,3 +79,4 @@ export async function updateSession(request: NextRequest) {
 
   return supabaseResponse
 }
+

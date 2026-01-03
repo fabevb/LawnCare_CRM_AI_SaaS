@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard,
   Users,
@@ -13,6 +14,8 @@ import {
   BarChart3,
   Settings,
   Inbox,
+  LogIn,
+  LogOut,
 } from 'lucide-react'
 
 const navigation = [
@@ -27,10 +30,13 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname() || '/'
+  const router = useRouter()
 
   const [userName, setUserName] = useState<string>('')
   const [userRole, setUserRole] = useState<string>('')
   const [isLoadingUser, setIsLoadingUser] = useState(true)
+  const [isSignedIn, setIsSignedIn] = useState(false)
+  const [isSigningOut, setIsSigningOut] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -38,6 +44,7 @@ export function Sidebar() {
       const user = data.user
       setUserName(user?.user_metadata?.full_name || user?.email || '')
       setUserRole(user?.user_metadata?.role || (user ? 'User' : 'Not signed in'))
+      setIsSignedIn(Boolean(user))
       setIsLoadingUser(false)
     })
 
@@ -45,6 +52,7 @@ export function Sidebar() {
       const user = session?.user
       setUserName(user?.user_metadata?.full_name || user?.email || '')
       setUserRole(user?.user_metadata?.role || (user ? 'User' : 'Not signed in'))
+      setIsSignedIn(Boolean(user))
       setIsLoadingUser(false)
     })
 
@@ -60,6 +68,19 @@ export function Sidebar() {
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
     return (parts[0][0] + parts[1][0]).toUpperCase()
   }, [userName])
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Sign out error:', error)
+      setIsSigningOut(false)
+      return
+    }
+    router.push('/login')
+    router.refresh()
+  }
 
   return (
     <div className="flex h-full w-64 flex-col bg-gradient-to-b from-slate-900 to-slate-800 border-r border-slate-700">
@@ -121,7 +142,33 @@ export function Sidebar() {
             </p>
           </div>
         </div>
+        <div className="mt-3">
+          {isSignedIn ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-start text-slate-200 hover:text-white hover:bg-slate-700/70"
+              onClick={handleSignOut}
+              disabled={isSigningOut}
+            >
+              <LogOut className="h-4 w-4" />
+              {isSigningOut ? 'Signing out...' : 'Sign out'}
+            </Button>
+          ) : (
+            <Button
+              asChild
+              variant="ghost"
+              className="w-full justify-start text-slate-200 hover:text-white hover:bg-slate-700/70"
+            >
+              <Link href="/login">
+                <LogIn className="h-4 w-4" />
+                Sign in
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )
 }
+

@@ -150,6 +150,14 @@ NEXT_PUBLIC_RECAPTCHA_SITE_KEY=
 RECAPTCHA_SECRET_KEY=
 ```
 
+## Auth Setup (Supabase)
+
+1. In Supabase Dashboard > Authentication > Providers, enable Email.
+2. In Authentication > URL Configuration, set:
+   - Site URL: http://localhost:3000 (local dev)
+   - Redirect URLs: http://localhost:3000/** and your production URL
+3. Create a test user in Supabase (or invite) to sign in locally.
+
 ## Available Scripts
 
 ```bash
