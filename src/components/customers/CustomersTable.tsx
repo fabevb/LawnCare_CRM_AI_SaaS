@@ -27,6 +27,23 @@ import { Switch } from '@/components/ui/switch'
 import { updateCustomer } from '@/app/(dashboard)/customers/actions'
 import { toast } from 'sonner'
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function getPhoneHref(value: string | null | undefined) {
+  if (!value) return null
+  const cleaned = value.replace(/[^\d+]/g, '')
+  const digits = cleaned.replace(/\D/g, '')
+  if (digits.length < 7) return null
+  return `tel:${cleaned}`
+}
+
+function getEmailHref(value: string | null | undefined) {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!EMAIL_PATTERN.test(trimmed)) return null
+  return `mailto:${trimmed}`
+}
+
 interface CustomersTableProps {
   customers: Customer[]
   onEdit?: (customer: Customer) => void
@@ -52,6 +69,8 @@ export function CustomersTable({
   const [form, setForm] = useState({
     name: '',
     address: '',
+    phone: '',
+    email: '',
     type: 'Residential',
     day: 'unscheduled',
     cost: 0,
@@ -72,6 +91,8 @@ export function CustomersTable({
     setForm({
       name: customer.name,
       address: customer.address,
+      phone: customer.phone || '',
+      email: customer.email || '',
       type: customer.type,
       day: customer.day || 'unscheduled',
       cost: customer.cost,
@@ -96,6 +117,8 @@ export function CustomersTable({
       id: editingId,
       name: form.name.trim(),
       address: form.address.trim(),
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
       type: form.type as 'Residential' | 'Commercial' | 'Workshop',
       cost: Number(form.cost),
       day: form.day === 'unscheduled' ? null : form.day,
@@ -173,6 +196,7 @@ export function CustomersTable({
               <TableRow className="bg-slate-50">
                 <TableHead className="font-semibold">Customer</TableHead>
                 <TableHead className="font-semibold">Address</TableHead>
+                <TableHead className="font-semibold">Contact</TableHead>
                 <TableHead className="font-semibold">Type</TableHead>
                 <TableHead className="font-semibold">Day</TableHead>
                 <TableHead className="font-semibold text-right">Cost</TableHead>
@@ -214,6 +238,23 @@ export function CustomersTable({
                         onChange={(e) => setForm({ ...form, address: e.target.value })}
                         className="h-9"
                       />
+                    </TableCell>
+                    <TableCell className="min-w-[200px]">
+                      <div className="space-y-2">
+                        <Input
+                          value={form.phone}
+                          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                          className="h-9"
+                          placeholder="Phone"
+                        />
+                        <Input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                          className="h-9"
+                          placeholder="Email"
+                        />
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Select
@@ -282,7 +323,7 @@ export function CustomersTable({
                       {customer.distance_from_shop_miles ? (
                         <span>{customer.distance_from_shop_miles.toFixed(1)} mi</span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">N/A</span>
                       )}
                     </TableCell>
                     <TableCell className="space-y-2">
@@ -328,6 +369,12 @@ export function CustomersTable({
                     <TableCell className="text-sm text-muted-foreground max-w-xs truncate" onClick={() => beginEdit(customer)}>
                       {customer.address}
                     </TableCell>
+                    <TableCell className="text-sm text-muted-foreground" onClick={() => beginEdit(customer)}>
+                      <div>{customer.phone || 'N/A'}</div>
+                      {customer.email ? (
+                        <div className="text-xs text-muted-foreground">{customer.email}</div>
+                      ) : null}
+                    </TableCell>
                     <TableCell onClick={() => beginEdit(customer)}>
                       <Badge variant="secondary" className={cn('font-medium', getTypeColor(customer.type))}>
                         {customer.type}
@@ -354,7 +401,7 @@ export function CustomersTable({
                       {customer.distance_from_shop_miles ? (
                         <span>{customer.distance_from_shop_miles.toFixed(1)} mi</span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <span className="text-muted-foreground">N/A</span>
                       )}
                     </TableCell>
                     <TableCell>
@@ -390,14 +437,32 @@ export function CustomersTable({
                             <MapPin className="mr-2 h-4 w-4" />
                             View on Map
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Phone className="mr-2 h-4 w-4" />
-                            Call Customer
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Mail className="mr-2 h-4 w-4" />
-                            Send Email
-                          </DropdownMenuItem>
+                          {getPhoneHref(customer.phone) ? (
+                            <DropdownMenuItem asChild>
+                              <a href={getPhoneHref(customer.phone) as string}>
+                                <Phone className="mr-2 h-4 w-4" />
+                                Call Customer
+                              </a>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              <Phone className="mr-2 h-4 w-4" />
+                              Call Customer
+                            </DropdownMenuItem>
+                          )}
+                          {getEmailHref(customer.email) ? (
+                            <DropdownMenuItem asChild>
+                              <a href={getEmailHref(customer.email) as string}>
+                                <Mail className="mr-2 h-4 w-4" />
+                                Send Email
+                              </a>
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem disabled>
+                              <Mail className="mr-2 h-4 w-4" />
+                              Send Email
+                            </DropdownMenuItem>
+                          )}
                           {canDelete ? (
                             <DropdownMenuItem
                               className="text-destructive"

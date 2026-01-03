@@ -6,10 +6,13 @@ import { revalidatePath } from 'next/cache'
 import { getShopLocation } from '@/lib/settings'
 import { haversineMilesKm } from '@/lib/geo'
 import { geocodeAddress } from '@/lib/geocoding'
+import { z } from 'zod'
 
 interface CreateCustomerInput {
   name: string
   address: string
+  phone?: string | null
+  email?: string | null
   type: 'Residential' | 'Commercial' | 'Workshop'
   cost: number
   day: string | null
@@ -19,6 +22,40 @@ interface CreateCustomerInput {
 
 interface UpdateCustomerInput extends CreateCustomerInput {
   id: string
+}
+
+
+const ImportRowSchema = z.object({
+  name: z.string().min(1),
+  address: z.string().min(1),
+  phone: z.string().max(40).nullable().optional(),
+  email: z.string().email().max(200).nullable().optional(),
+  type: z.enum(['Residential', 'Commercial', 'Workshop']).optional(),
+  cost: z.number().nonnegative().optional(),
+  day: z
+    .enum([
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+      'Workshop',
+    ])
+    .nullable()
+    .optional(),
+  route_order: z.number().int().nullable().optional(),
+  distance_from_shop_km: z.number().nullable().optional(),
+  distance_from_shop_miles: z.number().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  has_additional_work: z.boolean().optional(),
+  additional_work_cost: z.number().nullable().optional(),
+})
+
+function normalizeCustomerKey(name: string, address: string) {
+  return `${name}`.toLowerCase().replace(/\s+/g, '') + '|' + `${address}`.toLowerCase().replace(/\s+/g, '')
 }
 
 
@@ -37,6 +74,8 @@ export async function createCustomer(input: CreateCustomerInput) {
       name: string
       address: string
       type: string
+      phone?: string | null
+      email?: string | null
       cost: number
       day: string | null
       has_additional_work: boolean
@@ -50,6 +89,8 @@ export async function createCustomer(input: CreateCustomerInput) {
     const customerData: CustomerInsert = {
       name: input.name,
       address: input.address,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
       type: input.type,
       cost: input.cost,
       day: input.day === 'unscheduled' ? null : input.day,
@@ -108,6 +149,8 @@ export async function updateCustomer(input: UpdateCustomerInput) {
       name: string
       address: string
       type: string
+      phone?: string | null
+      email?: string | null
       cost: number
       day: string | null
       has_additional_work: boolean
@@ -122,6 +165,8 @@ export async function updateCustomer(input: UpdateCustomerInput) {
     const customerData: CustomerUpdate = {
       name: input.name,
       address: input.address,
+      phone: input.phone ?? null,
+      email: input.email ?? null,
       type: input.type,
       cost: input.cost,
       day: input.day === 'unscheduled' ? null : input.day,
@@ -251,5 +296,123 @@ export async function checkCustomerRoutes(customerId: string) {
   } catch (error) {
     console.error('Check customer routes error:', error)
     return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function importCustomers(input: {
+  rows: Array<z.infer<typeof ImportRowSchema>>
+  skipDuplicates?: boolean
+  dryRun?: boolean
+}) {
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return { error: adminCheck.error }
+  }
+
+  const supabase = await createClient()
+  const rows = input.rows || []
+  const skipDuplicates = input.skipDuplicates ?? true
+  const dryRun = input.dryRun ?? false
+
+  if (rows.length === 0) {
+    return { error: 'No rows provided for import.' }
+  }
+
+  const parsedRows: Array<z.infer<typeof ImportRowSchema>> = []
+  const rowErrors: Array<{ index: number; message: string }> = []
+
+  rows.forEach((row, index) => {
+    const parsed = ImportRowSchema.safeParse(row)
+    if (!parsed.success) {
+      rowErrors.push({ index: index + 1, message: 'Invalid row data.' })
+      return
+    }
+    parsedRows.push(parsed.data)
+  })
+
+  const { data: existingCustomers, error: existingError } = await supabase
+    .from('customers')
+    .select('name, address')
+
+  if (existingError) {
+    console.error('Existing customer lookup failed:', existingError)
+    return { error: 'Failed to check duplicates.' }
+  }
+
+  const existingKeys = new Set(
+    (existingCustomers || [])
+      .filter((customer) => customer.name && customer.address)
+      .map((customer) => normalizeCustomerKey(customer.name, customer.address))
+  )
+  const seenKeys = new Set<string>()
+  let duplicateCount = 0
+
+  const insertRows = parsedRows
+    .filter((row) => {
+      const key = normalizeCustomerKey(row.name, row.address)
+      const isDuplicate = existingKeys.has(key) || seenKeys.has(key)
+      seenKeys.add(key)
+      if (isDuplicate) {
+        duplicateCount += 1
+        return !skipDuplicates
+      }
+      return true
+    })
+    .map((row) => {
+      const hasAdditional = row.has_additional_work ?? false
+      return {
+        name: row.name.trim(),
+        address: row.address.trim(),
+        phone: row.phone?.trim() || null,
+        email: row.email?.trim() || null,
+        type: row.type ?? 'Residential',
+        cost: typeof row.cost === 'number' ? row.cost : 0,
+        day: row.day ?? null,
+        route_order: row.route_order ?? null,
+        distance_from_shop_km: row.distance_from_shop_km ?? null,
+        distance_from_shop_miles: row.distance_from_shop_miles ?? null,
+        latitude: row.latitude ?? null,
+        longitude: row.longitude ?? null,
+        has_additional_work: hasAdditional,
+        additional_work_cost: hasAdditional ? row.additional_work_cost ?? 0 : null,
+      }
+    })
+
+  if (dryRun) {
+    return {
+      success: true,
+      dryRun: true,
+      validCount: parsedRows.length,
+      duplicateCount,
+      errorCount: rowErrors.length,
+      totalCount: rows.length,
+    }
+  }
+
+  if (insertRows.length === 0) {
+    return {
+      success: true,
+      importedCount: 0,
+      duplicateCount,
+      errorCount: rowErrors.length,
+      totalCount: rows.length,
+    }
+  }
+
+  const { error } = await supabase.from('customers').insert(insertRows)
+
+  if (error) {
+    console.error('Import failed:', error)
+    return { error: 'Failed to import customers.' }
+  }
+
+  revalidatePath('/customers')
+
+  return {
+    success: true,
+    importedCount: insertRows.length,
+    duplicateCount,
+    errorCount: rowErrors.length,
+    totalCount: rows.length,
   }
 }

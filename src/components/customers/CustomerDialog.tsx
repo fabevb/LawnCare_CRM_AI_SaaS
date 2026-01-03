@@ -60,6 +60,8 @@ export function CustomerDialog({
   const [formData, setFormData] = useState({
     name: customer?.name || '',
     address: customer?.address || '',
+    phone: customer?.phone || '',
+    email: customer?.email || '',
     type: customer?.type || 'Residential',
     cost: customer?.cost || 35,
     day: customer?.day || 'unscheduled',
@@ -73,6 +75,8 @@ export function CustomerDialog({
       setFormData({
         name: customer.name,
         address: customer.address,
+        phone: customer.phone || '',
+        email: customer.email || '',
         type: customer.type,
         cost: customer.cost,
         day: customer.day || 'unscheduled',
@@ -83,6 +87,8 @@ export function CustomerDialog({
       setFormData({
         name: '',
         address: '',
+        phone: '',
+        email: '',
         type: 'Residential',
         cost: 35,
         day: 'unscheduled',
@@ -112,6 +118,15 @@ export function CustomerDialog({
         return
       }
 
+      const trimmedEmail = formData.email.trim()
+      if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Enter a valid email address')
+        setIsSubmitting(false)
+        return
+      }
+
+      const trimmedPhone = formData.phone.trim()
+
       if (formData.cost < 0) {
         setError('Cost must be 0 or greater')
         setIsSubmitting(false)
@@ -129,6 +144,8 @@ export function CustomerDialog({
             id: customer.id,
             name: formData.name.trim(),
             address: formData.address.trim(),
+            phone: trimmedPhone || null,
+            email: trimmedEmail || null,
             type: formData.type as 'Residential' | 'Commercial' | 'Workshop',
             cost: Number(formData.cost),
             day: formData.day === 'unscheduled' ? null : formData.day,
@@ -140,6 +157,8 @@ export function CustomerDialog({
         : await createCustomer({
             name: formData.name.trim(),
             address: formData.address.trim(),
+            phone: trimmedPhone || null,
+            email: trimmedEmail || null,
             type: formData.type as 'Residential' | 'Commercial' | 'Workshop',
             cost: Number(formData.cost),
             day: formData.day === 'unscheduled' ? null : formData.day,
@@ -246,7 +265,35 @@ export function CustomerDialog({
               </p>
             </div>
 
-            {/* Row 3: Cost and Day */}
+            {/* Row 3: Contact */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  placeholder="555-123-4567"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Row 4: Cost and Day */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="cost">Base Cost ($)</Label>
@@ -287,7 +334,7 @@ export function CustomerDialog({
               </div>
             </div>
 
-            {/* Row 4: Additional Work */}
+            {/* Row 5: Additional Work */}
             <div className="space-y-3 rounded-lg border p-4 bg-slate-50">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">

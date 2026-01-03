@@ -14,6 +14,8 @@ export interface Database {
           id: string
           name: string
           address: string
+          phone: string | null
+          email: string | null
           type: 'Residential' | 'Commercial' | 'Workshop'
           cost: number
           day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Workshop' | null
@@ -31,6 +33,8 @@ export interface Database {
           id?: string
           name: string
           address: string
+          phone?: string | null
+          email?: string | null
           type: 'Residential' | 'Commercial' | 'Workshop'
           cost?: number
           day?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Workshop' | null
@@ -48,6 +52,8 @@ export interface Database {
           id?: string
           name?: string
           address?: string
+          phone?: string | null
+          email?: string | null
           type?: 'Residential' | 'Commercial' | 'Workshop'
           cost?: number
           day?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Workshop' | null

@@ -17,6 +17,7 @@ import { Search, Plus, Map, List, Filter } from 'lucide-react'
 import { CustomersTable } from './CustomersTable'
 import { CustomersMap } from './CustomersMap'
 import { CustomerDialog } from './CustomerDialog'
+import { CustomersImportExportDialog } from './CustomersImportExportDialog'
 import { toast } from 'sonner'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
 
@@ -29,7 +30,7 @@ interface ShopLocation {
 interface CustomersViewProps {
   initialCustomers: Customer[]
   errorMessage?: string
-  inquiryByCustomerId?: Record<string, string>
+  inquiryByCustomerIdx: Record<string, string>
   shopLocation: ShopLocation
 }
 
@@ -50,10 +51,15 @@ export function CustomersView({
 
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [mapFocusedCustomerId, setMapFocusedCustomerId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setCustomers(initialCustomers)
+  }, [initialCustomers])
 
   const handleEdit = (customer: Customer) => {
     setSelectedCustomer(customer)
@@ -107,7 +113,9 @@ export function CustomersView({
     return customers.filter((customer) => {
       const matchesSearch =
         customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.address.toLowerCase().includes(searchQuery.toLowerCase())
+        customer.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (customer.phone && customer.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase()))
 
       const matchesDay =
         selectedDay === 'all' ||
@@ -158,13 +166,21 @@ export function CustomersView({
               Manage and view all your lawn care customers
             </p>
           </div>
-          <Button
-            className="bg-emerald-500 hover:bg-emerald-600"
-            onClick={() => setAddDialogOpen(true)}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Customer
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setImportDialogOpen(true)}
+            >
+              {isAdmin ? 'Import / Export' : 'Export CSV'}
+            </Button>
+            <Button
+              className="bg-emerald-500 hover:bg-emerald-600"
+              onClick={() => setAddDialogOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add Customer
+            </Button>
+          </div>
         </div>
 
         {errorMessage && (
@@ -198,7 +214,7 @@ export function CustomersView({
           <div className="relative flex-1 min-w-[300px]">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search customers by name or address..."
+              placeholder="Search customers by name, address, phone, or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -286,7 +302,7 @@ export function CustomersView({
                   onClick={() => setSearchQuery('')}
                   className="ml-1 rounded-full hover:bg-slate-200"
                 >
-                  ×
+                  x
                 </button>
               </Badge>
             )}
@@ -297,7 +313,7 @@ export function CustomersView({
                   onClick={() => setSelectedDay('all')}
                   className="ml-1 rounded-full hover:bg-slate-200"
                 >
-                  ×
+                  x
                 </button>
               </Badge>
             )}
@@ -308,7 +324,7 @@ export function CustomersView({
                   onClick={() => setSelectedType('all')}
                   className="ml-1 rounded-full hover:bg-slate-200"
                 >
-                  ×
+                  x
                 </button>
               </Badge>
             )}
@@ -319,7 +335,7 @@ export function CustomersView({
                   onClick={() => setSourceFilter('all')}
                   className="ml-1 rounded-full hover:bg-slate-200"
                 >
-                  ×
+                  x
                 </button>
               </Badge>
             )}
@@ -384,6 +400,13 @@ export function CustomersView({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         customer={selectedCustomer}
+      />
+
+      <CustomersImportExportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        customers={customers}
+        isAdmin={isAdmin}
       />
     </div>
   )
