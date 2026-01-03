@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { useRole } from '@/components/auth/RoleProvider'
 import { Pencil, Trash2, Plus } from 'lucide-react'
 import type { ServiceHistory } from '@/types/database.types'
 import { ServiceHistoryDialog } from '@/components/customers/ServiceHistoryDialog'
@@ -27,6 +28,7 @@ function formatCurrency(value: number | null | undefined) {
 
 export function ServiceHistoryPanel({ customerId, entries }: ServiceHistoryPanelProps) {
   const [items, setItems] = useState<ServiceHistory[]>(entries)
+  const { isAdmin } = useRole()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<ServiceHistory | null>(null)
 
@@ -45,6 +47,10 @@ export function ServiceHistoryPanel({ customerId, entries }: ServiceHistoryPanel
   }
 
   const handleDelete = async (entryId: string) => {
+    if (!isAdmin) {
+      toast.error('Admin access required to delete service history.')
+      return
+    }
     const result = await deleteServiceHistory(entryId, customerId)
     if (result.error) {
       toast.error(result.error)
@@ -106,15 +112,21 @@ export function ServiceHistoryPanel({ customerId, entries }: ServiceHistoryPanel
                     <Pencil className="mr-2 h-3 w-3" />
                     Edit
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-red-200 text-red-700 hover:bg-red-50"
-                    onClick={() => handleDelete(entry.id)}
-                  >
-                    <Trash2 className="mr-2 h-3 w-3" />
-                    Delete
-                  </Button>
+                  {isAdmin ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-200 text-red-700 hover:bg-red-50"
+                      onClick={() => handleDelete(entry.id)}
+                    >
+                      <Trash2 className="mr-2 h-3 w-3" />
+                      Delete
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" className="border-slate-200 text-slate-400" disabled>
+                      Delete (admin only)
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

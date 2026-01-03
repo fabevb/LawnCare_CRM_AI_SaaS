@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/roles'
 import { revalidatePath } from 'next/cache'
 
 export interface SaveSettingsInput {
@@ -17,6 +18,11 @@ export interface SaveSettingsInput {
 }
 
 export async function saveSettings(input: SaveSettingsInput) {
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return { error: adminCheck.error }
+  }
+
   const businessName = input.businessName?.trim() || ''
   const shopAddress = input.shopAddress?.trim() || ''
   const shopLat = Number(input.shopLat)

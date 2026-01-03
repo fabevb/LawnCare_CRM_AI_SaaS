@@ -6,6 +6,7 @@ import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/components/auth/RoleProvider'
 import { Input } from '@/components/ui/input'
 import {
   Dialog,
@@ -80,6 +81,7 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0, sho
   const [isStarting, setIsStarting] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const { isAdmin } = useRole()
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addSearch, setAddSearch] = useState('')
   const [addingCustomerId, setAddingCustomerId] = useState<string | null>(null)
@@ -392,15 +394,17 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0, sho
                   <Play className="mr-2 h-4 w-4" />
                   {isStarting ? 'Starting...' : 'Start Route'}
                 </Button>
-                <Button
-                  onClick={handleDeleteRoute}
-                  disabled={isDeleting}
-                  variant="outline"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {isAdmin ? (
+                  <Button
+                    onClick={handleDeleteRoute}
+                    disabled={isDeleting}
+                    variant="outline"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                ) : null}
               </>
             )}
             {isInProgress && (

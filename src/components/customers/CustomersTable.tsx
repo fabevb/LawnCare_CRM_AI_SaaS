@@ -31,6 +31,7 @@ interface CustomersTableProps {
   customers: Customer[]
   onEdit?: (customer: Customer) => void
   onDelete?: (customer: Customer) => void
+  canDelete?: boolean
   onViewOnMap?: (customer: Customer) => void
   inquiryByCustomerId?: Record<string, string>
   onInlineUpdate?: (customer: Customer) => void
@@ -41,6 +42,7 @@ export function CustomersTable({
   customers,
   onEdit,
   onDelete,
+  canDelete = true,
   onViewOnMap,
   inquiryByCustomerId,
   onInlineUpdate,
@@ -396,13 +398,15 @@ export function CustomersTable({
                             <Mail className="mr-2 h-4 w-4" />
                             Send Email
                           </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => onDelete?.(customer)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                          {canDelete ? (
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => onDelete?.(customer)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

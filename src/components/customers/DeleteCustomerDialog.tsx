@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Customer } from '@/types/database.types'
+import { useRole } from '@/components/auth/RoleProvider'
 import { deleteCustomer, checkCustomerRoutes } from '@/app/(dashboard)/customers/actions'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -34,6 +35,7 @@ export function DeleteCustomerDialog({
   const [isDeleting, setIsDeleting] = useState(false)
   const [routeCount, setRouteCount] = useState(0)
   const [isChecking, setIsChecking] = useState(false)
+  const { isAdmin } = useRole()
 
   // Check if customer is in any routes when dialog opens
   useEffect(() => {
@@ -113,6 +115,11 @@ export function DeleteCustomerDialog({
                 This action cannot be undone.
               </p>
             )}
+            {!isAdmin ? (
+              <p className="text-sm text-amber-700 mt-2">
+                Admin access required to delete customers.
+              </p>
+            ) : null}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -122,7 +129,7 @@ export function DeleteCustomerDialog({
               e.preventDefault()
               handleDelete()
             }}
-            disabled={isDeleting || isChecking}
+            disabled={isDeleting || isChecking || !isAdmin}
             className="bg-red-500 hover:bg-red-600"
           >
             {isDeleting ? (
@@ -130,8 +137,10 @@ export function DeleteCustomerDialog({
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Deleting...
               </>
-            ) : (
+            ) : isAdmin ? (
               'Delete Customer'
+            ) : (
+              'Admin only'
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

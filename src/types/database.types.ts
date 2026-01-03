@@ -412,6 +412,26 @@ export interface Database {
           updated_at?: string
         }
       }
+      profiles: {
+        Row: {
+          user_id: string
+          role: 'admin' | 'staff'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          role?: 'admin' | 'staff'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          role?: 'admin' | 'staff'
+          created_at?: string
+          updated_at?: string
+        }
+      }
       settings: {
         Row: {
           id: string
@@ -563,6 +583,20 @@ export interface Database {
           additional_work_cost: number
         }>
       }
+      get_public_business_profile: {
+        Args: Record<PropertyKey, never>
+        Returns: Array<{
+          business_name: string
+          business_email: string | null
+          business_phone: string | null
+        }>
+      }
+      is_admin: {
+        Args: {
+          check_user: string
+        }
+        Returns: boolean
+      }
       update_route_orders: {
         Args: {
           customer_ids: string[]
@@ -589,6 +623,10 @@ export type ProductUpdate = Database['public']['Tables']['products_services']['U
 export type CustomerProduct = Database['public']['Tables']['customer_products']['Row']
 export type CustomerProductInsert = Database['public']['Tables']['customer_products']['Insert']
 export type CustomerProductUpdate = Database['public']['Tables']['customer_products']['Update']
+
+export type Profile = Database['public']['Tables']['profiles']['Row']
+export type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
+export type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
 
 export type Route = Database['public']['Tables']['routes']['Row']
 export type RouteInsert = Database['public']['Tables']['routes']['Insert']

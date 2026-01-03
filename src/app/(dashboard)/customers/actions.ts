@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/roles'
 import { revalidatePath } from 'next/cache'
 import { getShopLocation } from '@/lib/settings'
 import { haversineMilesKm } from '@/lib/geo'
@@ -173,6 +174,11 @@ export async function updateCustomer(input: UpdateCustomerInput) {
 
 export async function deleteCustomer(customerId: string) {
   const supabase = await createClient()
+
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return { error: adminCheck.error }
+  }
 
   try {
     // Check if customer is in any routes

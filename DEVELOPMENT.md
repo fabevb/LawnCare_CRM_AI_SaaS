@@ -184,8 +184,20 @@ Migrations are in `supabase/migrations/`:
 
 Intended access model:
 - `anon`: insert-only on `inquiries` via the public form.
-- `authenticated`: full read/write access to CRM tables (customers, routes, route_stops, service_history, inquiries, products/services).
+- `staff` (authenticated): read/write access to CRM tables; deletes and settings changes are restricted.
+- `admin` (authenticated): full access including deletes, settings, and imports.
 - `service_role`: server-only; bypasses RLS for admin/background workflows.
+
+### Role Management
+
+- New users default to `staff`.
+- Promote an admin in Supabase SQL editor:
+
+```sql
+update public.profiles
+set role = 'admin'
+where user_id = '<user-uuid>';
+```
 
 ### RLS Regression Checklist
 

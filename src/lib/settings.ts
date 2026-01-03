@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SHOP_LOCATION } from '@/lib/config'
 
 export interface SettingsValues {
@@ -35,8 +36,11 @@ const DEFAULT_SETTINGS: SettingsValues = {
 
 export async function getSettings(): Promise<SettingsValues> {
   const supabase = await createClient()
+  const { data: authData } = await supabase.auth.getUser()
+  const adminClient = authData.user ? null : createAdminClient()
+  const client = adminClient ?? supabase
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('settings')
     .select(
       'business_name, business_email, business_phone, shop_address, shop_lat, shop_lng, notify_new_inquiry_email, notify_new_inquiry_sms, notify_route_completed_email, notify_route_completed_sms'
@@ -80,10 +84,32 @@ export async function getShopLocation(): Promise<ShopLocation> {
 }
 
 export async function getBusinessProfile() {
-  const settings = await getSettings()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('get_public_business_profile')
+
+  if (error) {
+    console.error('Error loading public business profile:', error)
+    return {
+      name: DEFAULT_SETTINGS.businessName,
+      email: DEFAULT_SETTINGS.businessEmail,
+      phone: DEFAULT_SETTINGS.businessPhone,
+    }
+  }
+
+  const profile = Array.isArray(data) ? data[0] : data
+
+  if (!profile) {
+    return {
+      name: DEFAULT_SETTINGS.businessName,
+      email: DEFAULT_SETTINGS.businessEmail,
+      phone: DEFAULT_SETTINGS.businessPhone,
+    }
+  }
+
   return {
-    name: settings.businessName,
-    email: settings.businessEmail,
-    phone: settings.businessPhone,
+    name: profile.business_name || DEFAULT_SETTINGS.businessName,
+    email: profile.business_email ?? DEFAULT_SETTINGS.businessEmail,
+    phone: profile.business_phone ?? DEFAULT_SETTINGS.businessPhone,
   }
 }

@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/components/auth/RoleProvider'
 import {
   LayoutDashboard,
   Users,
@@ -25,15 +26,15 @@ const navigation = [
   { name: 'Schedule', href: '/schedule', icon: Calendar },
   { name: 'Inquiries', href: '/inquiries', icon: Inbox },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Settings', href: '/settings', icon: Settings, requiresAdmin: true },
 ]
 
 export function Sidebar() {
   const pathname = usePathname() || '/'
   const router = useRouter()
+  const { role, isAdmin, isLoading: isRoleLoading } = useRole()
 
   const [userName, setUserName] = useState<string>('')
-  const [userRole, setUserRole] = useState<string>('')
   const [isLoadingUser, setIsLoadingUser] = useState(true)
   const [isSignedIn, setIsSignedIn] = useState(false)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -43,7 +44,6 @@ export function Sidebar() {
     supabase.auth.getUser().then(({ data }) => {
       const user = data.user
       setUserName(user?.user_metadata?.full_name || user?.email || '')
-      setUserRole(user?.user_metadata?.role || (user ? 'User' : 'Not signed in'))
       setIsSignedIn(Boolean(user))
       setIsLoadingUser(false)
     })
@@ -51,7 +51,6 @@ export function Sidebar() {
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user
       setUserName(user?.user_metadata?.full_name || user?.email || '')
-      setUserRole(user?.user_metadata?.role || (user ? 'User' : 'Not signed in'))
       setIsSignedIn(Boolean(user))
       setIsLoadingUser(false)
     })
@@ -68,6 +67,14 @@ export function Sidebar() {
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
     return (parts[0][0] + parts[1][0]).toUpperCase()
   }, [userName])
+
+  const roleLabel = isLoadingUser || isRoleLoading
+    ? 'Checking role'
+    : !isSignedIn
+    ? 'Not signed in'
+    : role === 'admin'
+    ? 'Admin'
+    : 'Staff'
 
   const handleSignOut = async () => {
     setIsSigningOut(true)
@@ -98,6 +105,9 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-3 py-4">
         {navigation.map((item) => {
+          if (item.requiresAdmin && !isAdmin) {
+            return null
+          }
           const isActive =
             item.href === '/'
               ? pathname === '/'
@@ -138,7 +148,7 @@ export function Sidebar() {
               {isLoadingUser ? 'Loading...' : userName || 'Guest'}
             </p>
             <p className="text-xs text-slate-400 truncate">
-              {isLoadingUser ? 'Checking session' : userRole || 'Not signed in'}
+              {isLoadingUser ? 'Checking session' : roleLabel}
             </p>
           </div>
         </div>
@@ -171,4 +181,3 @@ export function Sidebar() {
     </div>
   )
 }
-

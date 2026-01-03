@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/roles'
 import { revalidatePath } from 'next/cache'
 import type { ServiceHistory } from '@/types/database.types'
 

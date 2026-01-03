@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Customer } from '@/types/database.types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/components/auth/RoleProvider'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -16,6 +17,7 @@ import { Search, Plus, Map, List, Filter } from 'lucide-react'
 import { CustomersTable } from './CustomersTable'
 import { CustomersMap } from './CustomersMap'
 import { CustomerDialog } from './CustomerDialog'
+import { toast } from 'sonner'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
 
 interface ShopLocation {
@@ -38,6 +40,7 @@ export function CustomersView({
   shopLocation,
 }: CustomersViewProps) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
+  const { isAdmin } = useRole()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDay, setSelectedDay] = useState<string>('all')
   const [selectedType, setSelectedType] = useState<string>('all')
@@ -58,6 +61,10 @@ export function CustomersView({
   }
 
   const handleDelete = (customer: Customer) => {
+    if (!isAdmin) {
+      toast.error('Admin access required to delete customers.')
+      return
+    }
     setSelectedCustomer(customer)
     setDeleteDialogOpen(true)
   }
@@ -348,6 +355,7 @@ export function CustomersView({
                 prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
               )
             }
+            canDelete={isAdmin}
           />
         ) : (
           <CustomersMap

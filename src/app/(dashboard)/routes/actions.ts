@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/roles'
 import { revalidatePath } from 'next/cache'
 import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
 import { getShopLocation } from '@/lib/settings'
@@ -587,6 +588,11 @@ export async function completeRoute(routeId: string) {
 
 export async function deleteRoute(routeId: string) {
   const supabase = await createClient()
+
+  const adminCheck = await requireAdmin()
+  if (!adminCheck.ok) {
+    return { error: adminCheck.error }
+  }
 
   try {
     // Delete route stops first

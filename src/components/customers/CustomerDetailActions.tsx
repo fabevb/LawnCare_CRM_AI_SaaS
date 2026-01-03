@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { useRole } from '@/components/auth/RoleProvider'
 import { Customer } from '@/types/database.types'
 import { CustomerDialog } from '@/components/customers/CustomerDialog'
 import { DeleteCustomerDialog } from '@/components/customers/DeleteCustomerDialog'
@@ -13,6 +14,7 @@ interface CustomerDetailActionsProps {
 
 export function CustomerDetailActions({ customer }: CustomerDetailActionsProps) {
   const router = useRouter()
+  const { isAdmin } = useRole()
   const [editOpen, setEditOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -24,13 +26,19 @@ export function CustomerDetailActions({ customer }: CustomerDetailActionsProps) 
       >
         Edit Customer
       </Button>
-      <Button
-        variant="outline"
-        className="border-red-200 text-red-700 hover:bg-red-50"
-        onClick={() => setDeleteOpen(true)}
-      >
-        Delete
-      </Button>
+      {isAdmin ? (
+        <Button
+          variant="outline"
+          className="border-red-200 text-red-700 hover:bg-red-50"
+          onClick={() => setDeleteOpen(true)}
+        >
+          Delete
+        </Button>
+      ) : (
+        <Button variant="outline" className="border-slate-200 text-slate-400" disabled>
+          Delete (admin only)
+        </Button>
+      )}
 
       <CustomerDialog
         open={editOpen}
