@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyRecaptchaToken } from '@/lib/recaptcha'
+import { getSettings } from '@/lib/settings'
+import { sendInquiryNotifications } from '@/lib/notifications'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
@@ -269,6 +271,27 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to submit inquiry.' },
       { status: 500 }
     )
+  }
+
+  try {
+    const settings = await getSettings()
+    await sendInquiryNotifications(
+      {
+        name: data.name.trim(),
+        email: data.email.trim(),
+        phone: cleanedPhone,
+        address: data.address.trim(),
+        propertyType: data.propertyType || null,
+        lotSize: cleanedLotSize,
+        servicesInterested: services.length > 0 ? services : null,
+        preferredContactMethod: data.preferredContactMethod || null,
+        preferredContactTime: cleanedPreferredTime,
+        notes: cleanedNotes,
+      },
+      settings
+    )
+  } catch (notifyError) {
+    console.error('Inquiry notification error:', notifyError)
   }
 
   return NextResponse.json({ success: true }, { status: 201 })
