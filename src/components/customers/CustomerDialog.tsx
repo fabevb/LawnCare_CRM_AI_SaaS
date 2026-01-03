@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { AddressAutocomplete } from '@/components/inputs/AddressAutocomplete'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -161,6 +162,9 @@ export function CustomerDialog({
           ? `${formData.name} has been updated successfully`
           : `${formData.name} has been added to your customers`
       )
+      if (result.geocodeFailed) {
+        toast.warning('Address could not be verified. Please double-check it for mapping accuracy.')
+      }
       onOpenChange(false)
       if (onSuccess) onSuccess()
       router.refresh()
@@ -228,13 +232,13 @@ export function CustomerDialog({
               <Label htmlFor="address">
                 Address <span className="text-red-500">*</span>
               </Label>
-              <Input
+              <AddressAutocomplete
                 id="address"
-                placeholder="123 Main St, City, State ZIP"
                 value={formData.address}
-                onChange={(e) =>
-                  setFormData({ ...formData, address: e.target.value })
+                onChange={(value) =>
+                  setFormData({ ...formData, address: value })
                 }
+                placeholder="123 Main St, City, State ZIP"
                 required
               />
               <p className="text-xs text-muted-foreground">

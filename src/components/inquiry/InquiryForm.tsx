@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { AddressAutocomplete } from '@/components/inputs/AddressAutocomplete'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
@@ -200,11 +201,12 @@ export default function InquiryForm({
                   <MapPin className="h-3 w-3 text-muted-foreground" />
                   Address<span className="text-red-500">*</span>
                 </label>
-                <Input
+                <AddressAutocomplete
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={setAddress}
                   placeholder="Street, city, ZIP"
                   required
+                  showMissingKeyHint={false}
                 />
               </div>
             </div>

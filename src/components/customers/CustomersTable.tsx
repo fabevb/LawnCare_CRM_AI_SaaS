@@ -107,6 +107,9 @@ export function CustomersTable({
       return
     }
     toast.success(`${form.name} updated`)
+    if (result.geocodeFailed) {
+      toast.warning('Address could not be verified. Please double-check it for mapping accuracy.')
+    }
     onInlineUpdate?.(result.customer as Customer)
     setEditingId(null)
   }

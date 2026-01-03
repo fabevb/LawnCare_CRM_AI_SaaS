@@ -25,8 +25,12 @@ export async function createCustomer(input: CreateCustomerInput) {
   const supabase = await createClient()
 
   try {
-    // Geocode the address
+    let geocodeFailed = false
     const geocode = await geocodeAddress(input.address)
+
+    if (!geocode) {
+      geocodeFailed = true
+    }
 
     interface CustomerInsert {
       name: string
@@ -80,7 +84,7 @@ export async function createCustomer(input: CreateCustomerInput) {
     }
 
     revalidatePath('/customers')
-    return { success: true, customer: data }
+    return { success: true, customer: data, geocodeFailed }
   } catch (error) {
     console.error('Create customer error:', error)
     return { error: 'An unexpected error occurred' }
@@ -91,6 +95,7 @@ export async function updateCustomer(input: UpdateCustomerInput) {
   const supabase = await createClient()
 
   try {
+    let geocodeFailed = false
     // Get existing customer to check if address changed
     const { data: existing } = await supabase
       .from('customers')
@@ -141,6 +146,8 @@ export async function updateCustomer(input: UpdateCustomerInput) {
         )
         customerData.distance_from_shop_miles = distance.miles
         customerData.distance_from_shop_km = distance.km
+      } else {
+        geocodeFailed = true
       }
     }
 
@@ -157,7 +164,7 @@ export async function updateCustomer(input: UpdateCustomerInput) {
     }
 
     revalidatePath('/customers')
-    return { success: true, customer: data }
+    return { success: true, customer: data, geocodeFailed }
   } catch (error) {
     console.error('Update customer error:', error)
     return { error: 'An unexpected error occurred' }
