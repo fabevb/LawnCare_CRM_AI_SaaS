@@ -6,12 +6,20 @@ interface RoutePoint {
   longitude: number | null
 }
 
-export function optimizeRouteNearestNeighbor<T extends RoutePoint>(points: T[]): T[] {
+interface RouteOrigin {
+  lat: number
+  lng: number
+}
+
+export function optimizeRouteNearestNeighbor<T extends RoutePoint>(
+  points: T[],
+  origin: RouteOrigin = SHOP_LOCATION
+): T[] {
   if (points.length <= 1) return points
 
   const unvisited = [...points]
   const ordered: T[] = []
-  let current = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
+  let current = { lat: origin.lat, lng: origin.lng }
 
   while (unvisited.length > 0) {
     let nearestIndex = 0
@@ -40,4 +48,3 @@ export function optimizeRouteNearestNeighbor<T extends RoutePoint>(points: T[]):
 
   return ordered
 }
-

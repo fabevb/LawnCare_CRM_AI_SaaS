@@ -23,7 +23,13 @@ import { RoutePolyline } from './RoutePolyline'
 import { RouteStopCard } from './RouteStopCard'
 import { startRoute, completeRoute, deleteRoute, addStopToRoute } from '@/app/(dashboard)/routes/actions'
 import { toast } from 'sonner'
-import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
+
+interface ShopLocation {
+  lat: number
+  lng: number
+  address: string
+}
 
 interface Customer {
   id: string
@@ -64,9 +70,10 @@ interface RouteDetailViewProps {
   route: Route
   customers: Customer[]
   avgCompletedMinutes?: number
+  shopLocation: ShopLocation
 }
 
-export function RouteDetailView({ route, customers, avgCompletedMinutes = 0 }: RouteDetailViewProps) {
+export function RouteDetailView({ route, customers, avgCompletedMinutes = 0, shopLocation }: RouteDetailViewProps) {
   const apiKey = GOOGLE_MAPS_API_KEY
   const router = useRouter()
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null)
@@ -253,8 +260,8 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0 }: R
 
       try {
         const result = await directionsService.route({
-          origin: SHOP_LOCATION,
-          destination: SHOP_LOCATION,
+          origin: shopLocation,
+          destination: shopLocation,
           waypoints: waypoints,
           optimizeWaypoints: false, // Already optimized in database
           travelMode: google.maps.TravelMode.DRIVING
@@ -267,7 +274,7 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0 }: R
     }
 
     fetchDirections()
-  }, [apiKey, stops])
+  }, [apiKey, stops, shopLocation.lat, shopLocation.lng])
 
 
   return (
@@ -527,14 +534,14 @@ export function RouteDetailView({ route, customers, avgCompletedMinutes = 0 }: R
           <APIProvider apiKey={apiKey}>
             <Map
               mapId="route-detail-map"
-              defaultCenter={SHOP_LOCATION}
+              defaultCenter={shopLocation}
               defaultZoom={11}
               gestureHandling="greedy"
               disableDefaultUI={false}
               className="h-full w-full"
             >
               {/* Shop marker */}
-              <AdvancedMarker position={SHOP_LOCATION}>
+              <AdvancedMarker position={shopLocation}>
                 <Pin background="#10b981" borderColor="#ffffff" glyphColor="#ffffff" scale={1.2}>
                   <div className="text-xs font-bold">SHOP</div>
                 </Pin>

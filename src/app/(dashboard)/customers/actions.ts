@@ -2,7 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { getShopLocation } from '@/lib/settings'
 import { haversineMilesKm } from '@/lib/geo'
 
 interface CreateCustomerInput {
@@ -87,10 +88,10 @@ export async function createCustomer(input: CreateCustomerInput) {
       customerData.latitude = geocode.latitude
       customerData.longitude = geocode.longitude
 
-      // Calculate distance from shop
+      const shopLocation = await getShopLocation()
       const distance = haversineMilesKm(
-        SHOP_LOCATION.lat,
-        SHOP_LOCATION.lng,
+        shopLocation.lat,
+        shopLocation.lng,
         geocode.latitude,
         geocode.longitude
       )
@@ -162,9 +163,10 @@ export async function updateCustomer(input: UpdateCustomerInput) {
         customerData.latitude = geocode.latitude
         customerData.longitude = geocode.longitude
 
+        const shopLocation = await getShopLocation()
         const distance = haversineMilesKm(
-          SHOP_LOCATION.lat,
-          SHOP_LOCATION.lng,
+          shopLocation.lat,
+          shopLocation.lng,
           geocode.latitude,
           geocode.longitude
         )

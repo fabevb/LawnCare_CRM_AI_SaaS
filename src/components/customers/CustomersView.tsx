@@ -18,16 +18,24 @@ import { CustomersMap } from './CustomersMap'
 import { CustomerDialog } from './CustomerDialog'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
 
+interface ShopLocation {
+  lat: number
+  lng: number
+  address: string
+}
+
 interface CustomersViewProps {
   initialCustomers: Customer[]
   errorMessage?: string
   inquiryByCustomerId?: Record<string, string>
+  shopLocation: ShopLocation
 }
 
 export function CustomersView({
   initialCustomers,
   errorMessage,
   inquiryByCustomerId,
+  shopLocation,
 }: CustomersViewProps) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [searchQuery, setSearchQuery] = useState('')
@@ -346,6 +354,7 @@ export function CustomersView({
             customers={filteredCustomers}
             focusedCustomerId={mapFocusedCustomerId}
             onViewInTable={handleViewInTable}
+            shopLocation={shopLocation}
           />
         )}
       </div>

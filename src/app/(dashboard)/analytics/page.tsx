@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard'
+import { getShopLocation } from '@/lib/settings'
 
 export const metadata = {
   title: 'Analytics | Lawn Care CRM',
@@ -8,6 +9,7 @@ export const metadata = {
 
 export default async function AnalyticsPage() {
   const supabase = await createClient()
+  const shopLocation = await getShopLocation()
 
   const { data: customers } = await supabase
     .from('customers')
@@ -23,6 +25,7 @@ export default async function AnalyticsPage() {
     <AnalyticsDashboard
       customers={customers || []}
       serviceHistory={serviceHistory || []}
+      shopLocation={shopLocation}
     />
   )
 }

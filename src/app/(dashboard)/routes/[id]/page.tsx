@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { RouteDetailView } from '@/components/routes/RouteDetailView'
+import { getShopLocation } from '@/lib/settings'
 import { notFound } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -7,6 +8,7 @@ export const dynamic = 'force-dynamic'
 export default async function RouteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
+  const shopLocation = await getShopLocation()
 
   const { data: route, error } = await supabase
     .from('routes')
@@ -47,5 +49,12 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
     avgCompletedMinutes = durations.reduce((a, b) => a + b, 0) / durations.length
   }
 
-  return <RouteDetailView route={route} customers={customers || []} avgCompletedMinutes={avgCompletedMinutes} />
+  return (
+    <RouteDetailView
+      route={route}
+      customers={customers || []}
+      avgCompletedMinutes={avgCompletedMinutes}
+      shopLocation={shopLocation}
+    />
+  )
 }

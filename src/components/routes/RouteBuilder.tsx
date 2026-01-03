@@ -33,10 +33,16 @@ import {
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { createRoute } from '@/app/(dashboard)/routes/actions'
-import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
 import { haversineMiles } from '@/lib/geo'
 import { optimizeRouteNearestNeighbor } from '@/lib/routes'
 import { toast } from 'sonner'
+
+interface ShopLocation {
+  lat: number
+  lng: number
+  address: string
+}
 
 interface Customer {
   id: string
@@ -53,6 +59,7 @@ interface Customer {
 
 interface RouteBuilderProps {
   customers: Customer[]
+  shopLocation: ShopLocation
 }
 
 const DAYS_OF_WEEK = [
@@ -65,7 +72,7 @@ const DAYS_OF_WEEK = [
   'Sunday',
 ]
 
-export function RouteBuilder({ customers }: RouteBuilderProps) {
+export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
   const apiKey = GOOGLE_MAPS_API_KEY
   const router = useRouter()
 
@@ -100,7 +107,7 @@ export function RouteBuilder({ customers }: RouteBuilderProps) {
     if (selectedCustomers.length === 0) return 0
     // Simple calculation - in real implementation, use Google Directions API
     let distance = 0
-    let prev = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
+    let prev = { lat: shopLocation.lat, lng: shopLocation.lng }
     selectedCustomers.forEach(customer => {
       if (customer.latitude && customer.longitude) {
         distance += haversineMiles(
@@ -119,13 +126,13 @@ export function RouteBuilder({ customers }: RouteBuilderProps) {
         distance += haversineMiles(
           last.latitude,
           last.longitude,
-          SHOP_LOCATION.lat,
-          SHOP_LOCATION.lng
+          shopLocation.lat,
+          shopLocation.lng
         )
       }
     }
     return distance
-  }, [selectedCustomers])
+  }, [selectedCustomers, shopLocation.lat, shopLocation.lng])
 
   const totalRevenue = useMemo(() => {
     return selectedCustomers.reduce(
@@ -191,7 +198,7 @@ export function RouteBuilder({ customers }: RouteBuilderProps) {
     if (selectedCustomers.length === 0 || orderLocked) return
     setIsOptimizing(true)
 
-    const optimized = optimizeRouteNearestNeighbor(selectedCustomers)
+    const optimized = optimizeRouteNearestNeighbor(selectedCustomers, shopLocation)
     setSelectedCustomers(optimized)
 
     setIsOptimizing(false)
@@ -357,7 +364,7 @@ export function RouteBuilder({ customers }: RouteBuilderProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-emerald-900">Workshop (Start & End)</div>
-                <div className="text-xs text-emerald-700">{SHOP_LOCATION.address}</div>
+                <div className="text-xs text-emerald-700">{shopLocation.address}</div>
                 <div className="text-xs text-emerald-600 mt-1">
                   All routes begin and return here
                 </div>
@@ -521,14 +528,14 @@ export function RouteBuilder({ customers }: RouteBuilderProps) {
           <APIProvider apiKey={apiKey}>
             <Map
               mapId="route-builder-map"
-              defaultCenter={SHOP_LOCATION}
+              defaultCenter={shopLocation}
               defaultZoom={11}
               gestureHandling="greedy"
               disableDefaultUI={false}
               className="h-full w-full"
             >
               {/* Shop marker */}
-              <AdvancedMarker position={SHOP_LOCATION}>
+              <AdvancedMarker position={shopLocation}>
                 <Pin
                   background="#10b981"
                   borderColor="#ffffff"

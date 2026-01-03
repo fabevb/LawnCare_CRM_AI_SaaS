@@ -2,7 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { getShopLocation } from '@/lib/settings'
 import { haversineMiles } from '@/lib/geo'
 import { optimizeRouteNearestNeighbor } from '@/lib/routes'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
@@ -26,7 +27,7 @@ function getServiceSupabase() {
   })
 }
 
-async function getOptimizedRoute(customers: Array<{ id: string; latitude: number | null; longitude: number | null }>) {
+async function getOptimizedRoute(customers: Array<{ id: string; latitude: number | null; longitude: number | null }>, shopLocation: { lat: number; lng: number }) {
   const allHaveCoords = customers.every(
     (c) => c.latitude != null && c.longitude != null
   )
@@ -34,9 +35,9 @@ async function getOptimizedRoute(customers: Array<{ id: string; latitude: number
 
   // Fallback helper that uses nearest-neighbor and rough drive time
   const fallbackNearestNeighbor = () => {
-    const ordered = optimizeRouteNearestNeighbor(customers)
+    const ordered = optimizeRouteNearestNeighbor(customers, shopLocation)
     let distance = 0
-    let prev = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
+    let prev = { lat: shopLocation.lat, lng: shopLocation.lng }
 
     ordered.forEach((customer) => {
       if (customer.latitude && customer.longitude) {
@@ -55,8 +56,8 @@ async function getOptimizedRoute(customers: Array<{ id: string; latitude: number
       distance += haversineMiles(
         last.latitude,
         last.longitude,
-        SHOP_LOCATION.lat,
-        SHOP_LOCATION.lng
+        shopLocation.lat,
+        shopLocation.lng
       )
     }
 
@@ -73,7 +74,7 @@ async function getOptimizedRoute(customers: Array<{ id: string; latitude: number
   }
 
   try {
-    const origin = `${SHOP_LOCATION.lat},${SHOP_LOCATION.lng}`
+    const origin = `${shopLocation.lat},${shopLocation.lng}`
     const waypointStrings = customers.map(
       (c) => `${c.latitude},${c.longitude}`
     )
@@ -165,12 +166,14 @@ export async function createRoute(input: CreateRouteInput) {
   }
 
   // Optimize order using Google Directions (falls back to nearest-neighbor)
+  const shopLocation = await getShopLocation()
+
   const {
     orderedCustomers,
     drivingDistanceMiles,
     drivingDurationMinutes,
     orderIndices,
-  } = await getOptimizedRoute(customers)
+  } = await getOptimizedRoute(customers, shopLocation)
 
   // Use Google's driving time as the estimated route duration (no extra per-stop padding)
   const totalDuration = Math.round(drivingDurationMinutes)
@@ -361,8 +364,10 @@ export async function addStopToRoute(input: AddStopInput) {
     return { error: 'One or more stops are missing coordinates; cannot optimize' }
   }
 
+  const shopLocation = await getShopLocation()
+
   const { orderedCustomers, drivingDistanceMiles, drivingDurationMinutes, orderIndices } =
-    await getOptimizedRoute(optimizationInput)
+    await getOptimizedRoute(optimizationInput, shopLocation)
 
   // Update route metrics
   // Keep estimated time aligned with Google's driving time only

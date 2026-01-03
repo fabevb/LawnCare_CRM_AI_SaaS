@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
 import {
   ResponsiveContainer,
   BarChart as RechartsBarChart,
@@ -58,12 +58,19 @@ function formatCurrency(value: number) {
   })
 }
 
+interface ShopLocation {
+  lat: number
+  lng: number
+  address: string
+}
+
 interface AnalyticsDashboardProps {
   customers: CustomerPoint[]
   serviceHistory: ServiceHistoryEntry[]
+  shopLocation: ShopLocation
 }
 
-export function AnalyticsDashboard({ customers, serviceHistory }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: AnalyticsDashboardProps) {
   const [search, setSearch] = useState('')
   const [selectedDays, setSelectedDays] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<string>('all')
@@ -395,16 +402,17 @@ export function AnalyticsDashboard({ customers, serviceHistory }: AnalyticsDashb
                     <MapSection
                       filtered={filtered}
                       selectedCustomerId={selectedCustomerId}
-                    onSelectCustomer={setSelectedCustomerId}
-                  />
-                </APIProvider>
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-600">
-                  Add your Google Maps API key to view the map.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      onSelectCustomer={setSelectedCustomerId}
+                      shopLocation={shopLocation}
+                    />
+                  </APIProvider>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-600">
+                    Add your Google Maps API key to view the map.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
         </div>
       </div>
     </div>
@@ -521,10 +529,12 @@ function MapSection({
   filtered,
   selectedCustomerId,
   onSelectCustomer,
+  shopLocation,
 }: {
   filtered: CustomerPoint[]
   selectedCustomerId: string | null
   onSelectCustomer: (id: string | null) => void
+  shopLocation: ShopLocation
 }) {
   const map = useMap('analytics-map-instance')
 
@@ -544,7 +554,7 @@ function MapSection({
     if (!map) return
     const points = filtered.filter((c) => c.latitude != null && c.longitude != null)
     if (points.length === 0) {
-      map.setCenter(SHOP_LOCATION)
+      map.setCenter(shopLocation)
       map.setZoom(11)
       return
     }
@@ -558,14 +568,14 @@ function MapSection({
     } else {
       map.fitBounds(bounds, 40)
     }
-  }, [map, filtered])
+  }, [map, filtered, shopLocation.lat, shopLocation.lng])
 
   return (
     <>
       <Map
         id="analytics-map-instance"
         mapId="analytics-map"
-        defaultCenter={SHOP_LOCATION}
+        defaultCenter={shopLocation}
         defaultZoom={11}
         className="h-full w-full rounded-lg"
         disableDefaultUI={false}
@@ -573,7 +583,7 @@ function MapSection({
         onClick={() => onSelectCustomer(null)}
       >
         {/* Workshop / shop marker */}
-        <AdvancedMarker position={SHOP_LOCATION} zIndex={8000}>
+        <AdvancedMarker position={shopLocation} zIndex={8000}>
           <Pin
             background={DAY_COLORS['Workshop'] || '#22c55e'}
             glyphColor="transparent"

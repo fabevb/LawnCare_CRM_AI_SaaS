@@ -9,19 +9,29 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { MapPin as MapPinIcon, Navigation, DollarSign, Ruler } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
+import { GOOGLE_MAPS_API_KEY } from '@/lib/config'
+
+interface ShopLocation {
+  lat: number
+  lng: number
+  address: string
+}
 
 interface CustomersMapProps {
   customers: Customer[]
   focusedCustomerId?: string | null
   onViewInTable?: (customerId: string) => void
+  shopLocation: ShopLocation
 }
 
-// Default center uses configured shop location
-const DEFAULT_CENTER = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
 const DEFAULT_ZOOM = 12
 
-export function CustomersMap({ customers, focusedCustomerId, onViewInTable }: CustomersMapProps) {
+export function CustomersMap({
+  customers,
+  focusedCustomerId,
+  onViewInTable,
+  shopLocation,
+}: CustomersMapProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const apiKey = GOOGLE_MAPS_API_KEY
 
@@ -39,7 +49,7 @@ export function CustomersMap({ customers, focusedCustomerId, onViewInTable }: Cu
       }
     }
 
-    if (customersWithCoords.length === 0) return DEFAULT_CENTER
+    if (customersWithCoords.length === 0) return { lat: shopLocation.lat, lng: shopLocation.lng }
 
     const avgLat =
       customersWithCoords.reduce((sum, c) => sum + (c.latitude || 0), 0) /
@@ -49,7 +59,7 @@ export function CustomersMap({ customers, focusedCustomerId, onViewInTable }: Cu
       customersWithCoords.length
 
     return { lat: avgLat, lng: avgLng }
-  }, [customersWithCoords, focusedCustomerId])
+  }, [customersWithCoords, focusedCustomerId, shopLocation.lat, shopLocation.lng])
 
   const getMarkerColor = (type: string) => {
     switch (type) {

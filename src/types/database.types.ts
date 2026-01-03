@@ -162,6 +162,7 @@ export interface Database {
           total_distance_miles: number | null
           total_duration_minutes: number | null
           estimated_fuel_cost: number | null
+          average_duration_minutes: number | null
           optimized_waypoints: Json | null
           notes: string | null
           created_at: string
@@ -181,6 +182,7 @@ export interface Database {
           total_distance_miles?: number | null
           total_duration_minutes?: number | null
           estimated_fuel_cost?: number | null
+          average_duration_minutes?: number | null
           optimized_waypoints?: Json | null
           notes?: string | null
           created_at?: string
@@ -200,6 +202,7 @@ export interface Database {
           total_distance_miles?: number | null
           total_duration_minutes?: number | null
           estimated_fuel_cost?: number | null
+          average_duration_minutes?: number | null
           optimized_waypoints?: Json | null
           notes?: string | null
           created_at?: string
@@ -389,6 +392,82 @@ export interface Database {
           updated_at?: string
         }
       }
+      settings: {
+        Row: {
+          id: string
+          singleton: boolean
+          business_name: string
+          business_email: string | null
+          business_phone: string | null
+          shop_address: string
+          shop_lat: number
+          shop_lng: number
+          notify_new_inquiry_email: boolean
+          notify_new_inquiry_sms: boolean
+          notify_route_completed_email: boolean
+          notify_route_completed_sms: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          singleton?: boolean
+          business_name?: string
+          business_email?: string | null
+          business_phone?: string | null
+          shop_address?: string
+          shop_lat?: number
+          shop_lng?: number
+          notify_new_inquiry_email?: boolean
+          notify_new_inquiry_sms?: boolean
+          notify_route_completed_email?: boolean
+          notify_route_completed_sms?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          singleton?: boolean
+          business_name?: string
+          business_email?: string | null
+          business_phone?: string | null
+          shop_address?: string
+          shop_lat?: number
+          shop_lng?: number
+          notify_new_inquiry_email?: boolean
+          notify_new_inquiry_sms?: boolean
+          notify_route_completed_email?: boolean
+          notify_route_completed_sms?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      route_times: {
+        Row: {
+          id: string
+          route_id: string | null
+          started_at: string
+          ended_at: string
+          duration_minutes: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          route_id?: string | null
+          started_at: string
+          ended_at: string
+          duration_minutes: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          route_id?: string | null
+          started_at?: string
+          ended_at?: string
+          duration_minutes?: number
+          created_at?: string
+        }
+      }
     }
     Views: {
       customer_metrics: {
@@ -403,6 +482,22 @@ export interface Database {
           last_service_date: string | null
           avg_rating: number
           services_last_90_days: number
+        }
+      }
+      route_average_durations: {
+        Row: {
+          route_id: string
+          date: string
+          day_of_week: string
+          status: string
+          driver_id: string | null
+          driver_name: string | null
+          average_duration_minutes: number | null
+          total_duration_minutes: number | null
+          start_time: string | null
+          end_time: string | null
+          samples: number
+          calculated_avg_minutes: number
         }
       }
       route_statistics: {
@@ -483,6 +578,14 @@ export type RouteStop = Database['public']['Tables']['route_stops']['Row']
 export type RouteStopInsert = Database['public']['Tables']['route_stops']['Insert']
 export type RouteStopUpdate = Database['public']['Tables']['route_stops']['Update']
 
+export type RouteTime = Database['public']['Tables']['route_times']['Row']
+export type RouteTimeInsert = Database['public']['Tables']['route_times']['Insert']
+export type RouteTimeUpdate = Database['public']['Tables']['route_times']['Update']
+
+export type Settings = Database['public']['Tables']['settings']['Row']
+export type SettingsInsert = Database['public']['Tables']['settings']['Insert']
+export type SettingsUpdate = Database['public']['Tables']['settings']['Update']
+
 export type ServiceHistory = Database['public']['Tables']['service_history']['Row']
 export type ServiceHistoryInsert = Database['public']['Tables']['service_history']['Insert']
 export type ServiceHistoryUpdate = Database['public']['Tables']['service_history']['Update']
@@ -493,3 +596,4 @@ export type InquiryUpdate = Database['public']['Tables']['inquiries']['Update']
 
 export type CustomerMetric = Database['public']['Views']['customer_metrics']['Row']
 export type RouteStatistic = Database['public']['Views']['route_statistics']['Row']
+export type RouteAverageDuration = Database['public']['Views']['route_average_durations']['Row']

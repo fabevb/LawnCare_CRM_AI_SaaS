@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { CustomersView } from '@/components/customers/CustomersView'
+import { getShopLocation } from '@/lib/settings'
 
 export const metadata = {
   title: 'Customers | Lawn Care CRM',
@@ -8,6 +9,7 @@ export const metadata = {
 
 export default async function CustomersPage() {
   const supabase = await createClient()
+  const shopLocation = await getShopLocation()
 
   const { data: customers, error } = await supabase
     .from('customers')
@@ -35,6 +37,7 @@ export default async function CustomersPage() {
       initialCustomers={customers || []}
       errorMessage={error ? 'Failed to load customers. Please try again.' : undefined}
       inquiryByCustomerId={inquiryByCustomerId}
+      shopLocation={shopLocation}
     />
   )
 }

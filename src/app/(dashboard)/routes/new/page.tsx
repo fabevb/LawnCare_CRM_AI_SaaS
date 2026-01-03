@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { RouteBuilder } from '@/components/routes/RouteBuilder'
+import { getShopLocation } from '@/lib/settings'
 
 export const metadata = {
   title: 'Create Route | Lawn Care CRM',
@@ -8,6 +9,7 @@ export const metadata = {
 
 export default async function NewRoutePage() {
   const supabase = await createClient()
+  const shopLocation = await getShopLocation()
 
   // Get all customers with coordinates
   const { data: customers } = await supabase
@@ -17,5 +19,5 @@ export default async function NewRoutePage() {
     .not('longitude', 'is', null)
     .order('name')
 
-  return <RouteBuilder customers={customers || []} />
+  return <RouteBuilder customers={customers || []} shopLocation={shopLocation} />
 }
