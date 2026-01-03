@@ -1,13 +1,30 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import Link from 'next/link'
 import { Users, MapPin, DollarSign, TrendingUp } from 'lucide-react'
+
+const STATUS_STYLES: Record<string, string> = {
+  pending: 'bg-amber-100 text-amber-700',
+  contacted: 'bg-blue-100 text-blue-700',
+  quoted: 'bg-purple-100 text-purple-700',
+  converted: 'bg-emerald-100 text-emerald-700',
+  declined: 'bg-slate-100 text-slate-600',
+  spam: 'bg-red-100 text-red-700',
+}
+
 
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  const [{ data: customerMetrics }, { data: routeStats }] = await Promise.all([
+  const [{ data: customerMetrics }, { data: routeStats }, { data: recentInquiries }] = await Promise.all([
     supabase.from('customer_metrics').select('lifetime_revenue'),
     supabase.from('route_statistics').select('*'),
+    supabase
+      .from('inquiries')
+      .select('id, name, status, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5),
   ])
 
   const { data: customers } = await supabase.from('customers').select('id')
@@ -114,7 +131,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick Overview */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Today&apos;s Schedule</CardTitle>
@@ -166,6 +183,42 @@ export default async function DashboardPage() {
                 </li>
               )}
             </ul>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Inquiries</CardTitle>
+            <CardDescription>Latest leads from your public form</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!recentInquiries || recentInquiries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No inquiries yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {recentInquiries.map((inquiry) => (
+                  <li key={inquiry.id} className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-medium">{inquiry.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(inquiry.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={STATUS_STYLES[inquiry.status || 'pending'] || 'bg-slate-100 text-slate-700'}
+                    >
+                      {inquiry.status || 'pending'}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-4 text-sm">
+              <Link href="/inquiries" className="text-emerald-600 hover:underline">
+                View all inquiries
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>
