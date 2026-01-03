@@ -66,7 +66,8 @@ export function CustomersView({
         customer.address.toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesDay =
-        selectedDay === 'all' || customer.day === selectedDay
+        selectedDay === 'all' ||
+        (selectedDay === 'unscheduled' ? !customer.day : customer.day === selectedDay)
 
       const matchesType =
         selectedType === 'all' || customer.type === selectedType
@@ -167,6 +168,7 @@ export function CustomersView({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Days</SelectItem>
+              <SelectItem value="unscheduled">Unscheduled</SelectItem>
               {daysOfWeek.map((day) => (
                 <SelectItem key={day} value={day}>
                   {day}
@@ -184,6 +186,7 @@ export function CustomersView({
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="Residential">Residential</SelectItem>
               <SelectItem value="Commercial">Commercial</SelectItem>
+              <SelectItem value="Workshop">Workshop</SelectItem>
             </SelectContent>
           </Select>
 
@@ -245,7 +248,7 @@ export function CustomersView({
             )}
             {selectedDay !== 'all' && (
               <Badge variant="secondary" className="gap-1">
-                Day: {selectedDay}
+                Day: {selectedDay == 'unscheduled' ? 'Unscheduled' : selectedDay}
                 <button
                   onClick={() => setSelectedDay('all')}
                   className="ml-1 rounded-full hover:bg-slate-200"
