@@ -13,13 +13,14 @@ import { SHOP_LOCATION, GOOGLE_MAPS_API_KEY } from '@/lib/config'
 interface CustomersMapProps {
   customers: Customer[]
   focusedCustomerId?: string | null
+  onViewInTable?: (customerId: string) => void
 }
 
 // Default center uses configured shop location
 const DEFAULT_CENTER = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
 const DEFAULT_ZOOM = 12
 
-export function CustomersMap({ customers, focusedCustomerId }: CustomersMapProps) {
+export function CustomersMap({ customers, focusedCustomerId, onViewInTable }: CustomersMapProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const apiKey = GOOGLE_MAPS_API_KEY
 
@@ -233,8 +234,10 @@ export function CustomersMap({ customers, focusedCustomerId }: CustomersMapProps
                     variant="outline"
                     className="flex-1"
                     onClick={() => {
-                      // For now, just keep the customer highlighted on the map.
-                      // A dedicated detail view can be wired here later.
+                      if (onViewInTable) {
+                        onViewInTable(selectedCustomer.id)
+                        return
+                      }
                       const element = document.querySelector(
                         `[data-customer-row-id="${selectedCustomer.id}"]`
                       ) as HTMLElement | null

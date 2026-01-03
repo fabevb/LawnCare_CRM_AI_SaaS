@@ -33,6 +33,7 @@ interface CustomersTableProps {
   onViewOnMap?: (customer: Customer) => void
   inquiryByCustomerId?: Record<string, string>
   onInlineUpdate?: (customer: Customer) => void
+  focusedCustomerId?: string | null
 }
 
 export function CustomersTable({
@@ -42,6 +43,7 @@ export function CustomersTable({
   onViewOnMap,
   inquiryByCustomerId,
   onInlineUpdate,
+  focusedCustomerId,
 }: CustomersTableProps) {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -177,7 +179,10 @@ export function CustomersTable({
               <TableRow
                 key={customer.id}
                 data-customer-row-id={customer.id}
-                  className="group hover:bg-slate-50/50 transition-colors cursor-pointer"
+                className={cn(
+                  'group hover:bg-slate-50/50 transition-colors cursor-pointer',
+                  focusedCustomerId === customer.id && 'bg-emerald-50 ring-2 ring-emerald-400/40'
+                )}
               >
                 {editingId === customer.id ? (
                   <>

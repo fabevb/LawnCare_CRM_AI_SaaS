@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Customer } from '@/types/database.types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ export function CustomersView({
   const [selectedType, setSelectedType] = useState<string>('all')
   const [view, setView] = useState<'table' | 'map'>('table')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'inquiry'>('all')
+  const [tableFocusedCustomerId, setTableFocusedCustomerId] = useState<string | null>(null)
 
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -57,6 +58,34 @@ export function CustomersView({
     setMapFocusedCustomerId(customer.id)
     setView('map')
   }
+
+  const handleViewInTable = (customerId: string) => {
+    setTableFocusedCustomerId(customerId)
+    setView('table')
+  }
+
+  useEffect(() => {
+    if (view !== 'table' || !tableFocusedCustomerId) return
+    const element = document.querySelector(
+      `[data-customer-row-id="${tableFocusedCustomerId}"]`
+    ) as HTMLElement | null
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+    const timeout = setTimeout(() => {
+      setTableFocusedCustomerId(null)
+    }, 2000)
+    return () => clearTimeout(timeout)
+  }, [
+    view,
+    tableFocusedCustomerId,
+    customers,
+    searchQuery,
+    selectedDay,
+    selectedType,
+    sourceFilter,
+    inquiryByCustomerId,
+  ])
 
   // Filter customers
   const filteredCustomers = useMemo(() => {
@@ -305,6 +334,7 @@ export function CustomersView({
             onDelete={handleDelete}
             onViewOnMap={handleViewOnMap}
             inquiryByCustomerId={inquiryByCustomerId}
+            focusedCustomerId={tableFocusedCustomerId}
             onInlineUpdate={(updated) =>
               setCustomers((prev) =>
                 prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
@@ -315,6 +345,7 @@ export function CustomersView({
           <CustomersMap
             customers={filteredCustomers}
             focusedCustomerId={mapFocusedCustomerId}
+            onViewInTable={handleViewInTable}
           />
         )}
       </div>
