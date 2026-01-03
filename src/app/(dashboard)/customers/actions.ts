@@ -266,6 +266,164 @@ export async function deleteCustomer(customerId: string) {
   }
 }
 
+
+export async function archiveCustomer(customerId: string) {
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .update({ archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', customerId)
+
+    if (error) {
+      console.error('Archive customer error:', error)
+      return { error: 'Failed to archive customer: ' + error.message }
+    }
+
+    revalidatePath('/customers')
+    revalidatePath('/routes')
+    revalidatePath('/analytics')
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
+    console.error('Archive customer error:', error)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function restoreCustomer(customerId: string) {
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .update({ archived_at: null, updated_at: new Date().toISOString() })
+      .eq('id', customerId)
+
+    if (error) {
+      console.error('Restore customer error:', error)
+      return { error: 'Failed to restore customer: ' + error.message }
+    }
+
+    revalidatePath('/customers')
+    revalidatePath('/routes')
+    revalidatePath('/analytics')
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
+    console.error('Restore customer error:', error)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function archiveCustomers(customerIds: string[]) {
+  if (!customerIds || customerIds.length === 0) {
+    return { error: 'No customers selected.' }
+  }
+
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .update({ archived_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .in('id', customerIds)
+
+    if (error) {
+      console.error('Archive customers error:', error)
+      return { error: 'Failed to archive customers: ' + error.message }
+    }
+
+    revalidatePath('/customers')
+    revalidatePath('/routes')
+    revalidatePath('/analytics')
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
+    console.error('Archive customers error:', error)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+export async function restoreCustomers(customerIds: string[]) {
+  if (!customerIds || customerIds.length === 0) {
+    return { error: 'No customers selected.' }
+  }
+
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .update({ archived_at: null, updated_at: new Date().toISOString() })
+      .in('id', customerIds)
+
+    if (error) {
+      console.error('Restore customers error:', error)
+      return { error: 'Failed to restore customers: ' + error.message }
+    }
+
+    revalidatePath('/customers')
+    revalidatePath('/routes')
+    revalidatePath('/analytics')
+    revalidatePath('/')
+    return { success: true }
+  } catch (error) {
+    console.error('Restore customers error:', error)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
+interface BulkUpdateCustomersInput {
+  ids: string[]
+  day?: string | null
+  type?: 'Residential' | 'Commercial' | 'Workshop'
+}
+
+export async function bulkUpdateCustomers(input: BulkUpdateCustomersInput) {
+  if (!input.ids || input.ids.length === 0) {
+    return { error: 'No customers selected.' }
+  }
+
+  const updateData: Record<string, string | null> = {
+    updated_at: new Date().toISOString(),
+  }
+
+  if (input.day !== undefined) {
+    updateData.day = input.day === 'unscheduled' ? null : input.day
+  }
+
+  if (input.type !== undefined) {
+    updateData.type = input.type
+  }
+
+  if (Object.keys(updateData).length <= 1) {
+    return { error: 'No updates provided.' }
+  }
+
+  const supabase = await createClient()
+
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .update(updateData)
+      .in('id', input.ids)
+
+    if (error) {
+      console.error('Bulk update customers error:', error)
+      return { error: 'Failed to update customers: ' + error.message }
+    }
+
+    revalidatePath('/customers')
+    revalidatePath('/routes')
+    return { success: true }
+  } catch (error) {
+    console.error('Bulk update customers error:', error)
+    return { error: 'An unexpected error occurred' }
+  }
+}
+
 export async function checkCustomerRoutes(customerId: string) {
   const supabase = await createClient()
 

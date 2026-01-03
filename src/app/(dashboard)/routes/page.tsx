@@ -36,6 +36,7 @@ export default async function RoutesPage() {
   const { data: unscheduledCustomers, error: unscheduledError } = await supabase
     .from('customers')
     .select('id')
+    .is('archived_at', null)
     .is('day', null)
 
   return (

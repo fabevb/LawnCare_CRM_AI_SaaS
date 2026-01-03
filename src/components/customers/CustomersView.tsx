@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { Customer } from '@/types/database.types'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import type { Customer } from '@/types/database.types'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useRole } from '@/components/auth/RoleProvider'
@@ -20,6 +21,12 @@ import { CustomerDialog } from './CustomerDialog'
 import { CustomersImportExportDialog } from './CustomersImportExportDialog'
 import { toast } from 'sonner'
 import { DeleteCustomerDialog } from './DeleteCustomerDialog'
+import {
+  archiveCustomers,
+  bulkUpdateCustomers,
+  restoreCustomers,
+} from '@/app/(dashboard)/customers/actions'
+import { buildCsv, buildCustomerExportRows, CUSTOMER_EXPORT_HEADERS } from '@/lib/customers-csv'
 
 interface ShopLocation {
   lat: number
@@ -30,8 +37,9 @@ interface ShopLocation {
 interface CustomersViewProps {
   initialCustomers: Customer[]
   errorMessage?: string
-  inquiryByCustomerIdx: Record<string, string>
+  inquiryByCustomerId?: Record<string, string>
   shopLocation: ShopLocation
+  initialArchiveFilter?: 'active' | 'archived' | 'all'
 }
 
 export function CustomersView({
@@ -39,15 +47,26 @@ export function CustomersView({
   errorMessage,
   inquiryByCustomerId,
   shopLocation,
+  initialArchiveFilter,
 }: CustomersViewProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const { isAdmin } = useRole()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDay, setSelectedDay] = useState<string>('all')
   const [selectedType, setSelectedType] = useState<string>('all')
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>(
+    initialArchiveFilter ?? 'active'
+  )
   const [view, setView] = useState<'table' | 'map'>('table')
   const [sourceFilter, setSourceFilter] = useState<'all' | 'inquiry'>('all')
   const [tableFocusedCustomerId, setTableFocusedCustomerId] = useState<string | null>(null)
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<string>>(new Set())
+  const [bulkDay, setBulkDay] = useState('')
+  const [bulkType, setBulkType] = useState('')
+  const [bulkAction, setBulkAction] = useState<string | null>(null)
 
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -59,7 +78,12 @@ export function CustomersView({
 
   useEffect(() => {
     setCustomers(initialCustomers)
+    setSelectedCustomerIds(new Set())
   }, [initialCustomers])
+
+  useEffect(() => {
+    setArchiveFilter(initialArchiveFilter ?? 'active')
+  }, [initialArchiveFilter])
 
   const handleEdit = (customer: Customer) => {
     setSelectedCustomer(customer)
@@ -67,10 +91,6 @@ export function CustomersView({
   }
 
   const handleDelete = (customer: Customer) => {
-    if (!isAdmin) {
-      toast.error('Admin access required to delete customers.')
-      return
-    }
     setSelectedCustomer(customer)
     setDeleteDialogOpen(true)
   }
@@ -83,6 +103,42 @@ export function CustomersView({
   const handleViewInTable = (customerId: string) => {
     setTableFocusedCustomerId(customerId)
     setView('table')
+  }
+
+  const updateArchiveFilter = (value: 'active' | 'archived' | 'all') => {
+    setArchiveFilter(value)
+    setSelectedCustomerIds(new Set())
+    setBulkDay('')
+    setBulkType('')
+
+    const params = new URLSearchParams(searchParams.toString())
+    if (value === 'active') {
+      params.delete('archive')
+    } else {
+      params.set('archive', value)
+    }
+    const query = params.toString()
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false })
+  }
+
+  const handleToggleSelect = (customerId: string, selected: boolean) => {
+    setSelectedCustomerIds((prev) => {
+      const next = new Set(prev)
+      if (selected) {
+        next.add(customerId)
+      } else {
+        next.delete(customerId)
+      }
+      return next
+    })
+  }
+
+  const handleToggleSelectAll = (selected: boolean, ids: string[]) => {
+    if (selected) {
+      setSelectedCustomerIds(new Set(ids))
+    } else {
+      setSelectedCustomerIds(new Set())
+    }
   }
 
   useEffect(() => {
@@ -105,12 +161,17 @@ export function CustomersView({
     selectedDay,
     selectedType,
     sourceFilter,
+    archiveFilter,
     inquiryByCustomerId,
   ])
 
   // Filter customers
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
+      const matchesArchive =
+        archiveFilter === 'all' ||
+        (archiveFilter === 'archived' ? customer.archived_at : !customer.archived_at)
+
       const matchesSearch =
         customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         customer.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -130,9 +191,39 @@ export function CustomersView({
           inquiryByCustomerId &&
           inquiryByCustomerId[customer.id])
 
-      return matchesSearch && matchesDay && matchesType && matchesSource
+      return matchesArchive && matchesSearch && matchesDay && matchesType && matchesSource
     })
-  }, [customers, searchQuery, selectedDay, selectedType, sourceFilter, inquiryByCustomerId])
+  }, [
+    customers,
+    archiveFilter,
+    searchQuery,
+    selectedDay,
+    selectedType,
+    sourceFilter,
+    inquiryByCustomerId,
+  ])
+
+  useEffect(() => {
+    setSelectedCustomerIds((prev) => {
+      if (prev.size === 0) return prev
+      const visibleIds = new Set(filteredCustomers.map((customer) => customer.id))
+      let changed = false
+      const next = new Set<string>()
+      prev.forEach((id) => {
+        if (visibleIds.has(id)) {
+          next.add(id)
+        } else {
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
+  }, [filteredCustomers])
+
+  const selectedCustomers = useMemo(
+    () => customers.filter((customer) => selectedCustomerIds.has(customer.id)),
+    [customers, selectedCustomerIds]
+  )
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -154,6 +245,147 @@ export function CustomersView({
   }, [filteredCustomers])
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+  const downloadCsv = (csv: string, filename: string) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleBulkDayUpdate = async () => {
+    if (!bulkDay) {
+      toast.error('Select a day to apply.')
+      return
+    }
+    const ids = Array.from(selectedCustomerIds)
+    if (ids.length === 0) {
+      toast.error('Select customers to update.')
+      return
+    }
+
+    setBulkAction('day')
+    const result = await bulkUpdateCustomers({ ids, day: bulkDay })
+    setBulkAction(null)
+
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+
+    toast.success(`Updated ${ids.length} customer${ids.length === 1 ? '' : 's'}.`)
+    setSelectedCustomerIds(new Set())
+    setBulkDay('')
+    router.refresh()
+  }
+
+  const handleBulkTypeUpdate = async () => {
+    if (!bulkType) {
+      toast.error('Select a type to apply.')
+      return
+    }
+    const ids = Array.from(selectedCustomerIds)
+    if (ids.length === 0) {
+      toast.error('Select customers to update.')
+      return
+    }
+
+    setBulkAction('type')
+    const result = await bulkUpdateCustomers({ ids, type: bulkType })
+    setBulkAction(null)
+
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+
+    toast.success(`Updated ${ids.length} customer${ids.length === 1 ? '' : 's'}.`)
+    setSelectedCustomerIds(new Set())
+    setBulkType('')
+    router.refresh()
+  }
+
+  const handleBulkArchiveToggle = async () => {
+    const ids = Array.from(selectedCustomerIds)
+    if (ids.length === 0) {
+      toast.error('Select customers to update.')
+      return
+    }
+
+    if (archiveSelectionMode === 'mixed') {
+      toast.error('Select only active or archived customers.')
+      return
+    }
+
+    const isRestore = archiveSelectionMode === 'restore'
+    const confirmMessage = isRestore
+      ? `Restore ${ids.length} customer${ids.length === 1 ? '' : 's'}?`
+      : `Archive ${ids.length} customer${ids.length === 1 ? '' : 's'}?`
+
+    if (!window.confirm(confirmMessage)) return
+
+    setBulkAction(isRestore ? 'restore' : 'archive')
+    const result = isRestore
+      ? await restoreCustomers(ids)
+      : await archiveCustomers(ids)
+    setBulkAction(null)
+
+    if (result?.error) {
+      toast.error(result.error)
+      return
+    }
+
+    toast.success(
+      isRestore
+        ? `Restored ${ids.length} customer${ids.length === 1 ? '' : 's'}.`
+        : `Archived ${ids.length} customer${ids.length === 1 ? '' : 's'}.`
+    )
+    setSelectedCustomerIds(new Set())
+    setBulkDay('')
+    setBulkType('')
+    router.refresh()
+  }
+
+  const handleBulkExport = () => {
+    if (selectedCustomers.length === 0) {
+      toast.error('Select customers to export.')
+      return
+    }
+
+    const csv = buildCsv(
+      CUSTOMER_EXPORT_HEADERS,
+      buildCustomerExportRows(selectedCustomers)
+    )
+    downloadCsv(csv, 'customers_selected.csv')
+  }
+
+  const isBulkBusy = bulkAction !== null
+  const selectedCount = selectedCustomerIds.size
+  const selectedArchivedCount = selectedCustomers.filter((customer) => customer.archived_at).length
+  const archiveSelectionMode =
+    selectedCount === 0
+      ? 'none'
+      : selectedArchivedCount === 0
+      ? 'archive'
+      : selectedArchivedCount === selectedCount
+      ? 'restore'
+      : 'mixed'
+  const archiveActionLabel =
+    archiveSelectionMode === 'restore'
+      ? 'Restore'
+      : archiveSelectionMode === 'mixed'
+      ? 'Archive/Restore'
+      : 'Archive'
+  const archiveActionClass =
+    archiveSelectionMode === 'restore'
+      ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+      : archiveSelectionMode === 'mixed'
+      ? 'bg-slate-300 text-slate-600'
+      : 'bg-amber-500 hover:bg-amber-600 text-white'
+  const archiveActionDisabled = isBulkBusy || archiveSelectionMode === 'mixed'
 
   return (
     <div className="flex h-full flex-col">
@@ -220,6 +452,18 @@ export function CustomersView({
               className="pl-10"
             />
           </div>
+
+          <Select value={archiveFilter} onValueChange={updateArchiveFilter}>
+            <SelectTrigger className="w-[180px]">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+              <SelectItem value="all">All Customers</SelectItem>
+            </SelectContent>
+          </Select>
 
           <Select value={selectedDay} onValueChange={setSelectedDay}>
             <SelectTrigger className="w-[180px]">
@@ -292,7 +536,11 @@ export function CustomersView({
         </div>
 
         {/* Active Filters */}
-        {(selectedDay !== 'all' || selectedType !== 'all' || sourceFilter !== 'all' || searchQuery) && (
+        {(selectedDay !== 'all' ||
+          selectedType !== 'all' ||
+          sourceFilter !== 'all' ||
+          archiveFilter !== 'active' ||
+          searchQuery) && (
           <div className="mt-4 flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">Active filters:</span>
             {searchQuery && (
@@ -300,6 +548,17 @@ export function CustomersView({
                 Search: {searchQuery}
                 <button
                   onClick={() => setSearchQuery('')}
+                  className="ml-1 rounded-full hover:bg-slate-200"
+                >
+                  x
+                </button>
+              </Badge>
+            )}
+            {archiveFilter !== 'active' && (
+              <Badge variant="secondary" className="gap-1">
+                Status: {archiveFilter === 'archived' ? 'Archived' : 'All'}
+                <button
+                  onClick={() => updateArchiveFilter('active')}
                   className="ml-1 rounded-full hover:bg-slate-200"
                 >
                   x
@@ -347,11 +606,101 @@ export function CustomersView({
                 setSelectedDay('all')
                 setSelectedType('all')
                 setSourceFilter('all')
+                updateArchiveFilter('active')
               }}
               className="h-6 px-2 text-xs"
             >
               Clear all
             </Button>
+          </div>
+        )}
+
+        {selectedCount > 0 && (
+          <div className="mt-4 rounded-lg border bg-slate-50 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="text-sm font-medium">
+                {selectedCount} selected
+              </div>
+
+              <Select value={bulkDay || undefined} onValueChange={setBulkDay}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Assign day" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unscheduled">Unscheduled</SelectItem>
+                  {daysOfWeek.map((day) => (
+                    <SelectItem key={day} value={day}>
+                      {day}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkDayUpdate}
+                disabled={!bulkDay || isBulkBusy}
+              >
+                {bulkAction === 'day' ? 'Updating...' : 'Apply Day'}
+              </Button>
+
+              <Select value={bulkType || undefined} onValueChange={setBulkType}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Assign type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Residential">Residential</SelectItem>
+                  <SelectItem value="Commercial">Commercial</SelectItem>
+                  <SelectItem value="Workshop">Workshop</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkTypeUpdate}
+                disabled={!bulkType || isBulkBusy}
+              >
+                {bulkAction === 'type' ? 'Updating...' : 'Apply Type'}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkExport}
+                disabled={isBulkBusy}
+              >
+                Export CSV
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleBulkArchiveToggle}
+                disabled={archiveActionDisabled}
+                className={archiveActionClass}
+                title={
+                  archiveSelectionMode === 'mixed'
+                    ? 'Select only active or archived customers.'
+                    : undefined
+                }
+              >
+                {bulkAction === 'archive' || bulkAction === 'restore'
+                  ? 'Working...'
+                  : archiveActionLabel}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedCustomerIds(new Set())
+                  setBulkDay('')
+                  setBulkType('')
+                }}
+                disabled={isBulkBusy}
+              >
+                Clear selection
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -371,7 +720,9 @@ export function CustomersView({
                 prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
               )
             }
-            canDelete={isAdmin}
+            selectedCustomerIds={selectedCustomerIds}
+            onToggleSelect={handleToggleSelect}
+            onToggleSelectAll={(selected, ids) => handleToggleSelectAll(selected, ids)}
           />
         ) : (
           <CustomersMap
@@ -400,6 +751,10 @@ export function CustomersView({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         customer={selectedCustomer}
+        onSuccess={() => {
+          setSelectedCustomer(null)
+          setSelectedCustomerIds(new Set())
+        }}
       />
 
       <CustomersImportExportDialog

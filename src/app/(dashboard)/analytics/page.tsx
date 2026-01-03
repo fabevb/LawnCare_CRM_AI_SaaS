@@ -16,6 +16,7 @@ export default async function AnalyticsPage() {
     .select(
       'id, name, address, day, type, cost, has_additional_work, additional_work_cost, latitude, longitude'
     )
+    .is('archived_at', null)
 
   const { data: serviceHistory } = await supabase
     .from('service_history')

@@ -13,6 +13,7 @@ SELECT
   COUNT(CASE WHEN sh.service_date >= CURRENT_DATE - INTERVAL '90 days' THEN 1 END) as services_last_90_days
 FROM customers c
 LEFT JOIN service_history sh ON c.id = sh.customer_id
+WHERE c.archived_at IS NULL
 GROUP BY c.id, c.name, c.type, c.cost;
 
 -- Create a view for route statistics
@@ -87,6 +88,7 @@ BEGIN
     c.additional_work_cost
   FROM customers c
   WHERE c.day = day_name
+    AND c.archived_at IS NULL
   ORDER BY c.route_order NULLS LAST, c.name;
 END;
 $$ LANGUAGE plpgsql STABLE;

@@ -7,14 +7,29 @@ export const metadata = {
   description: 'Manage your lawn care customers',
 }
 
-export default async function CustomersPage() {
+type CustomersPageProps = {
+  searchParams?: { archive?: string | string[] }
+}
+
+function resolveArchiveFilter(value?: string | string[]) {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (raw === 'archived' || raw === 'all') return raw
+  return 'active'
+}
+
+export default async function CustomersPage({ searchParams }: CustomersPageProps) {
   const supabase = await createClient()
   const shopLocation = await getShopLocation()
+  const archiveFilter = resolveArchiveFilter(searchParams?.archive)
 
-  const { data: customers, error } = await supabase
-    .from('customers')
-    .select('*')
-    .order('name')
+  let customersQuery = supabase.from('customers').select('*').order('name')
+  if (archiveFilter === 'active') {
+    customersQuery = customersQuery.is('archived_at', null)
+  } else if (archiveFilter === 'archived') {
+    customersQuery = customersQuery.not('archived_at', 'is', null)
+  }
+
+  const { data: customers, error } = await customersQuery
 
   const { data: convertedInquiries } = await supabase
     .from('inquiries')
@@ -38,6 +53,7 @@ export default async function CustomersPage() {
       errorMessage={error ? 'Failed to load customers. Please try again.' : undefined}
       inquiryByCustomerId={inquiryByCustomerId}
       shopLocation={shopLocation}
+      initialArchiveFilter={archiveFilter}
     />
   )
 }

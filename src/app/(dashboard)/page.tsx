@@ -27,7 +27,7 @@ export default async function DashboardPage() {
       .limit(5),
   ])
 
-  const { data: customers } = await supabase.from('customers').select('id')
+  const { data: customers } = await supabase.from('customers').select('id').is('archived_at', null)
 
   const totalCustomers = customers?.length || 0
   const totalRoutes = routeStats?.length || 0
@@ -150,7 +150,7 @@ export default async function DashboardPage() {
               <ul className="space-y-1 text-sm text-muted-foreground">
                 {todayRoutes.map((route) => (
                   <li key={route.id}>
-                    <span className="font-medium">{route.day_of_week}</span> ·{' '}
+                    <span className="font-medium">{route.day_of_week}</span> - 
                     {route.total_stops} stops
                   </li>
                 ))}

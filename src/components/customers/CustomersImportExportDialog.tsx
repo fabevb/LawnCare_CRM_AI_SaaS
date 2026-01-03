@@ -31,24 +31,8 @@ import {
 } from '@/components/ui/table'
 import { toast } from 'sonner'
 import type { Customer } from '@/types/database.types'
+import { buildCsv, buildCustomerExportRows, CUSTOMER_EXPORT_HEADERS } from '@/lib/customers-csv'
 import { importCustomers } from '@/app/(dashboard)/customers/actions'
-
-const EXPORT_HEADERS = [
-  'Name',
-  'Address',
-  'Type',
-  'Cost',
-  'Day',
-  'Order',
-  'Distance from shop_km',
-  'distance_from_shop_miles',
-  'Additional Work',
-  'Additional Work cost',
-  'Phone',
-  'Email',
-  'Latitude',
-  'Longitude',
-]
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -128,20 +112,6 @@ function normalizeHeader(value: string) {
 
 function normalizeKey(name: string, address: string) {
   return `${name}`.toLowerCase().replace(/\s+/g, '') + '|' + `${address}`.toLowerCase().replace(/\s+/g, '')
-}
-
-function escapeCsvValue(value: string) {
-  if (value === undefined || value === null) return ''
-  const stringValue = String(value)
-  if (/[",\r\n]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`
-  }
-  return stringValue
-}
-
-function buildCsv(headers: string[], rows: string[][]) {
-  const lines = [headers, ...rows].map((row) => row.map(escapeCsvValue).join(','))
-  return lines.join('\n')
 }
 
 function parseCsv(content: string) {
@@ -359,24 +329,9 @@ export function CustomersImportExportDialog({
   const canImport = isAdmin && mappingErrors.length === 0 && parsedRows.length > 0
 
   const handleExport = () => {
-    const rowsToExport = customers.map((customer) => [
-      customer.name,
-      customer.address,
-      customer.type,
-      String(customer.cost ?? ''),
-      customer.day ?? '',
-      customer.route_order?.toString() ?? '',
-      customer.distance_from_shop_km?.toString() ?? '',
-      customer.distance_from_shop_miles?.toString() ?? '',
-      customer.has_additional_work ? 'Yes' : 'No',
-      customer.additional_work_cost?.toString() ?? '',
-      customer.phone ?? '',
-      customer.email ?? '',
-      customer.latitude?.toString() ?? '',
-      customer.longitude?.toString() ?? '',
-    ])
+    const rowsToExport = buildCustomerExportRows(customers)
 
-    const csv = buildCsv(EXPORT_HEADERS, rowsToExport)
+    const csv = buildCsv(CUSTOMER_EXPORT_HEADERS, rowsToExport)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -387,7 +342,7 @@ export function CustomersImportExportDialog({
   }
 
   const handleTemplate = () => {
-    const csv = buildCsv(EXPORT_HEADERS, [])
+    const csv = buildCsv(CUSTOMER_EXPORT_HEADERS, [])
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')

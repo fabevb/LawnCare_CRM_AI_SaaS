@@ -155,7 +155,7 @@ export async function createRoute(input: CreateRouteInput) {
   // Fetch customer details to calculate route metrics
   const { data: customers } = await supabase
     .from('customers')
-    .select('id, latitude, longitude')
+    .select('id, latitude, longitude, archived_at')
     .in(
       'id',
       input.customers.map((c) => c.id)
@@ -321,7 +321,7 @@ export async function addStopToRoute(input: AddStopInput) {
   // Fetch new customer details
   const { data: customer, error: customerError } = await supabase
     .from('customers')
-    .select('id, latitude, longitude')
+    .select('id, latitude, longitude, archived_at')
     .eq('id', input.customerId)
     .single()
 
@@ -329,6 +329,11 @@ export async function addStopToRoute(input: AddStopInput) {
     console.error('Add stop customer fetch error:', customerError)
     return { error: 'Customer not found' }
   }
+
+  if (customer.archived_at) {
+    return { error: 'Customer is archived and cannot be added to routes' }
+  }
+
 
   if (customer.latitude == null || customer.longitude == null) {
     return { error: 'Customer is missing coordinates, cannot add to route' }

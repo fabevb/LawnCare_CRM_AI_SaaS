@@ -12,9 +12,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Customer } from '@/types/database.types'
+import type { Customer } from '@/types/database.types'
 import { useRole } from '@/components/auth/RoleProvider'
-import { deleteCustomer, checkCustomerRoutes } from '@/app/(dashboard)/customers/actions'
+import {
+  archiveCustomer,
+  deleteCustomer,
+  checkCustomerRoutes,
+  restoreCustomer,
+} from '@/app/(dashboard)/customers/actions'
 import { Loader2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -33,9 +38,11 @@ export function DeleteCustomerDialog({
 }: DeleteCustomerDialogProps) {
   const router = useRouter()
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
   const [routeCount, setRouteCount] = useState(0)
   const [isChecking, setIsChecking] = useState(false)
   const { isAdmin } = useRole()
+  const isArchived = Boolean(customer?.archived_at)
 
   // Check if customer is in any routes when dialog opens
   useEffect(() => {
@@ -49,6 +56,37 @@ export function DeleteCustomerDialog({
       })
     }
   }, [open, customer])
+
+  const handleArchiveToggle = async () => {
+    if (!customer) return
+
+    setIsArchiving(true)
+
+    try {
+      const result = isArchived
+        ? await restoreCustomer(customer.id)
+        : await archiveCustomer(customer.id)
+
+      if (result.error) {
+        toast.error(result.error)
+        setIsArchiving(false)
+        return
+      }
+
+      toast.success(
+        isArchived
+          ? `${customer.name} has been restored.`
+          : `${customer.name} has been archived.`
+      )
+      onOpenChange(false)
+      if (onSuccess) onSuccess()
+      router.refresh()
+    } catch (err) {
+      console.error('Archive toggle error:', err)
+      toast.error('An unexpected error occurred')
+      setIsArchiving(false)
+    }
+  }
 
   const handleDelete = async () => {
     if (!customer) return
@@ -88,12 +126,18 @@ export function DeleteCustomerDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            Delete Customer?
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            {isArchived ? 'Restore Customer?' : 'Archive Customer?'}
           </AlertDialogTitle>
           <AlertDialogDescription className="space-y-2">
             <p>
-              Are you sure you want to delete <strong>{customer.name}</strong>?
+              {isArchived ? 'Restore' : 'Archive'}{' '}
+              <strong>{customer.name}</strong>?
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {isArchived
+                ? 'Restoring will make the customer active again for scheduling and analytics.'
+                : 'Archiving hides the customer from scheduling and analytics. You can restore them later.'}
             </p>
 
             {isChecking ? (
@@ -104,45 +148,66 @@ export function DeleteCustomerDialog({
             ) : routeCount > 0 ? (
               <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 mt-2">
                 <p className="text-sm text-amber-900 font-medium">
-                  ⚠️ This customer is in {routeCount} route{routeCount !== 1 ? 's' : ''}.
+                  Heads up: This customer is in {routeCount} route{routeCount !== 1 ? 's' : ''}.
                 </p>
                 <p className="text-sm text-amber-800 mt-1">
-                  Deleting will remove them from all routes. This action cannot be undone.
+                  {isArchived
+                    ? 'Restoring will not change existing routes.'
+                    : 'Archiving will not remove them from existing routes.'}
                 </p>
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground mt-2">
-                This action cannot be undone.
-              </p>
-            )}
+            ) : null}
             {!isAdmin ? (
               <p className="text-sm text-amber-700 mt-2">
-                Admin access required to delete customers.
+                Admin access required to delete customers permanently.
               </p>
             ) : null}
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={(e) => {
-              e.preventDefault()
-              handleDelete()
-            }}
-            disabled={isDeleting || isChecking || !isAdmin}
-            className="bg-red-500 hover:bg-red-600"
-          >
-            {isDeleting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Deleting...
-              </>
-            ) : isAdmin ? (
-              'Delete Customer'
-            ) : (
-              'Admin only'
-            )}
-          </AlertDialogAction>
+        <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <AlertDialogCancel disabled={isDeleting || isArchiving}>Cancel</AlertDialogCancel>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleArchiveToggle()
+              }}
+              disabled={isArchiving || isChecking}
+              className={
+                isArchived
+                  ? 'bg-emerald-500 hover:bg-emerald-600'
+                  : 'bg-amber-500 hover:bg-amber-600'
+              }
+            >
+              {isArchiving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isArchived ? 'Restoring...' : 'Archiving...'}
+                </>
+              ) : (
+                <>{isArchived ? 'Restore Customer' : 'Archive Customer'}</>
+              )}
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDelete()
+              }}
+              disabled={isDeleting || isChecking || !isAdmin}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : isAdmin ? (
+                'Delete Permanently'
+              ) : (
+                'Admin only'
+              )}
+            </AlertDialogAction>
+          </div>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

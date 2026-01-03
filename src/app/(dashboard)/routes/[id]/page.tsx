@@ -32,6 +32,7 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ id
     .select(
       'id, name, address, latitude, longitude, cost, has_additional_work, additional_work_cost'
     )
+    .is('archived_at', null)
 
   const { data: completedRoutes } = await supabase
     .from('route_times')

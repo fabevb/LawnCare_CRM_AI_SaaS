@@ -15,6 +15,7 @@ export default async function NewRoutePage() {
   const { data: customers } = await supabase
     .from('customers')
     .select('*')
+    .is('archived_at', null)
     .not('latitude', 'is', null)
     .not('longitude', 'is', null)
     .order('name')
