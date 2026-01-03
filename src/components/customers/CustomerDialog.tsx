@@ -111,14 +111,14 @@ export function CustomerDialog({
         return
       }
 
-      if (formData.cost <= 0) {
-        setError('Cost must be greater than 0')
+      if (formData.cost < 0) {
+        setError('Cost must be 0 or greater')
         setIsSubmitting(false)
         return
       }
 
-      if (formData.has_additional_work && formData.additional_work_cost <= 0) {
-        setError('Additional work cost must be greater than 0')
+      if (formData.has_additional_work && formData.additional_work_cost < 0) {
+        setError('Additional work cost must be 0 or greater')
         setIsSubmitting(false)
         return
       }

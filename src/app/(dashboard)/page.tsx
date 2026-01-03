@@ -6,7 +6,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
 
   const [{ data: customerMetrics }, { data: routeStats }] = await Promise.all([
-    supabase.from('customer_metrics').select('*').limit(1),
+    supabase.from('customer_metrics').select('lifetime_revenue'),
     supabase.from('route_statistics').select('*'),
   ])
 
@@ -16,9 +16,7 @@ export default async function DashboardPage() {
   const totalRoutes = routeStats?.length || 0
 
   const totalLifetimeRevenue =
-    customerMetrics && customerMetrics.length > 0
-      ? Number(customerMetrics[0].lifetime_revenue || 0)
-      : 0
+    customerMetrics?.reduce((sum, metric) => sum + Number(metric.lifetime_revenue || 0), 0) || 0
 
   const totalRouteStops =
     routeStats?.reduce(
