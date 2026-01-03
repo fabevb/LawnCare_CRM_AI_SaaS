@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { GOOGLE_MAPS_SERVER_API_KEY } from '@/lib/config'
 import { getShopLocation } from '@/lib/settings'
 import { haversineMiles } from '@/lib/geo'
-import { optimizeRouteNearestNeighbor } from '@/lib/routes'
+import { optimizeRouteNearestNeighborWithIndices } from '@/lib/routes'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 
 const SERVICE_TIME_PER_STOP_MIN = 30
@@ -36,7 +36,7 @@ async function getOptimizedRoute(customers: Array<{ id: string; latitude: number
 
   // Fallback helper that uses nearest-neighbor and rough drive time
   const fallbackNearestNeighbor = () => {
-    const ordered = optimizeRouteNearestNeighbor(customers, shopLocation)
+    const { ordered, orderIndices } = optimizeRouteNearestNeighborWithIndices(customers, shopLocation)
     let distance = 0
     let prev = { lat: shopLocation.lat, lng: shopLocation.lng }
 
@@ -66,7 +66,7 @@ async function getOptimizedRoute(customers: Array<{ id: string; latitude: number
       orderedCustomers: ordered,
       drivingDistanceMiles: distance,
       drivingDurationMinutes: Math.round(distance * 3), // rough 20mph estimate
-      orderIndices: ordered.map((_, idx) => idx),
+      orderIndices,
     }
   }
 

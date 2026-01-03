@@ -86,8 +86,7 @@ async function optimizeRoute(customers) {
 }
 
 function simpleOptimization(customers) {
-  // Simple nearest-neighbor algorithm
-  const unvisited = [...customers];
+  const unvisited = customers.map((customer, index) => ({ customer, index }));
   const ordered = [];
   let current = SHOP_LOCATION;
 
@@ -95,12 +94,12 @@ function simpleOptimization(customers) {
     let nearestIndex = 0;
     let nearestDistance = Infinity;
 
-    unvisited.forEach((customer, index) => {
+    unvisited.forEach((entry, index) => {
       const distance = calculateDistance(
         current.lat,
         current.lng,
-        customer.latitude,
-        customer.longitude
+        entry.customer.latitude,
+        entry.customer.longitude
       );
       if (distance < nearestDistance) {
         nearestDistance = distance;
@@ -110,21 +109,21 @@ function simpleOptimization(customers) {
 
     const nearest = unvisited.splice(nearestIndex, 1)[0];
     ordered.push(nearest);
-    current = { lat: nearest.latitude, lng: nearest.longitude };
+    current = { lat: nearest.customer.latitude, lng: nearest.customer.longitude };
   }
 
   // Calculate total distance
   let totalDistance = 0;
   let prev = SHOP_LOCATION;
 
-  ordered.forEach(customer => {
+  ordered.forEach(entry => {
     totalDistance += calculateDistance(
       prev.lat,
       prev.lng,
-      customer.latitude,
-      customer.longitude
+      entry.customer.latitude,
+      entry.customer.longitude
     );
-    prev = { lat: customer.latitude, lng: customer.longitude };
+    prev = { lat: entry.customer.latitude, lng: entry.customer.longitude };
   });
 
   // Add return to shop
@@ -138,10 +137,11 @@ function simpleOptimization(customers) {
   return {
     distance: totalDistance,
     duration: Math.round(totalDistance * 3), // 20mph average
-    waypoints: ordered.map(c => ({ lat: c.latitude, lng: c.longitude })),
-    waypointOrder: ordered.map((_, i) => i)
+    waypoints: ordered.map(entry => ({ lat: entry.customer.latitude, lng: entry.customer.longitude })),
+    waypointOrder: ordered.map(entry => entry.index)
   };
 }
+
 
 function calculateDistance(lat1, lng1, lat2, lng2) {
   const R = 3959; // Earth's radius in miles

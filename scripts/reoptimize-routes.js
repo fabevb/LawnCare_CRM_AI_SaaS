@@ -80,7 +80,7 @@ function optimizeNearestNeighbor(customers) {
     }
   }
 
-  const unvisited = [...customers]
+  const unvisited = customers.map((customer, index) => ({ customer, index }))
   const ordered = []
   let current = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
 
@@ -88,8 +88,8 @@ function optimizeNearestNeighbor(customers) {
     let nearestIndex = 0
     let nearestDistance = Infinity
 
-    unvisited.forEach((point, index) => {
-      const distance = haversineMiles(current.lat, current.lng, point.latitude, point.longitude)
+    unvisited.forEach((entry, index) => {
+      const distance = haversineMiles(current.lat, current.lng, entry.customer.latitude, entry.customer.longitude)
       if (distance < nearestDistance) {
         nearestDistance = distance
         nearestIndex = index
@@ -98,24 +98,25 @@ function optimizeNearestNeighbor(customers) {
 
     const nearest = unvisited.splice(nearestIndex, 1)[0]
     ordered.push(nearest)
-    current = { lat: nearest.latitude, lng: nearest.longitude }
+    current = { lat: nearest.customer.latitude, lng: nearest.customer.longitude }
   }
 
   let distance = 0
   let prev = { lat: SHOP_LOCATION.lat, lng: SHOP_LOCATION.lng }
-  ordered.forEach((point) => {
-    distance += haversineMiles(prev.lat, prev.lng, point.latitude, point.longitude)
-    prev = { lat: point.latitude, lng: point.longitude }
+  ordered.forEach((entry) => {
+    distance += haversineMiles(prev.lat, prev.lng, entry.customer.latitude, entry.customer.longitude)
+    prev = { lat: entry.customer.latitude, lng: entry.customer.longitude }
   })
   distance += haversineMiles(prev.lat, prev.lng, SHOP_LOCATION.lat, SHOP_LOCATION.lng)
 
   return {
-    orderedCustomers: ordered,
+    orderedCustomers: ordered.map((entry) => entry.customer),
     drivingDistanceMiles: distance,
     drivingDurationMinutes: Math.round(distance * 3),
-    orderIndices: ordered.map((_, idx) => idx),
+    orderIndices: ordered.map((entry) => entry.index),
   }
 }
+
 
 async function optimizeWithGoogle(customers) {
   const allHaveCoords = customers.every((c) => c.latitude != null && c.longitude != null)

@@ -11,21 +11,32 @@ interface RouteOrigin {
   lng: number
 }
 
-export function optimizeRouteNearestNeighbor<T extends RoutePoint>(
+type IndexedPoint<T extends RoutePoint> = {
+  point: T
+  index: number
+}
+
+export function optimizeRouteNearestNeighborWithIndices<T extends RoutePoint>(
   points: T[],
   origin: RouteOrigin = SHOP_LOCATION
-): T[] {
-  if (points.length <= 1) return points
+) {
+  if (points.length <= 1) {
+    return { ordered: points, orderIndices: points.map((_, idx) => idx) }
+  }
 
-  const unvisited = [...points]
-  const ordered: T[] = []
+  const unvisited: Array<IndexedPoint<T>> = points.map((point, index) => ({
+    point,
+    index,
+  }))
+  const ordered: Array<IndexedPoint<T>> = []
   let current = { lat: origin.lat, lng: origin.lng }
 
   while (unvisited.length > 0) {
     let nearestIndex = 0
     let nearestDistance = Infinity
 
-    unvisited.forEach((point, index) => {
+    unvisited.forEach((item, index) => {
+      const { point } = item
       if (point.latitude == null || point.longitude == null) return
       const distance = haversineMiles(
         current.lat,
@@ -41,10 +52,20 @@ export function optimizeRouteNearestNeighbor<T extends RoutePoint>(
 
     const nearest = unvisited.splice(nearestIndex, 1)[0]
     ordered.push(nearest)
-    if (nearest.latitude != null && nearest.longitude != null) {
-      current = { lat: nearest.latitude, lng: nearest.longitude }
+    if (nearest.point.latitude != null && nearest.point.longitude != null) {
+      current = { lat: nearest.point.latitude, lng: nearest.point.longitude }
     }
   }
 
-  return ordered
+  return {
+    ordered: ordered.map((item) => item.point),
+    orderIndices: ordered.map((item) => item.index),
+  }
+}
+
+export function optimizeRouteNearestNeighbor<T extends RoutePoint>(
+  points: T[],
+  origin: RouteOrigin = SHOP_LOCATION
+): T[] {
+  return optimizeRouteNearestNeighborWithIndices(points, origin).ordered
 }
