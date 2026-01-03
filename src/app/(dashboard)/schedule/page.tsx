@@ -35,6 +35,7 @@ export default async function SchedulePage() {
       )
     `)
     .order('day_of_week')
+    .order('date')
     .order('stop_order', { foreignTable: 'route_stops' })
 
   return <ScheduleBoard routes={routes || []} />

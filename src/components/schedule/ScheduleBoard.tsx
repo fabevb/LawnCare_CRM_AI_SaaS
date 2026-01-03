@@ -37,6 +37,12 @@ type ScheduleRoute = {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
+function sortByDate(a?: string | null, b?: string | null) {
+  const aTime = a ? new Date(a).getTime() : Number.MAX_SAFE_INTEGER
+  const bTime = b ? new Date(b).getTime() : Number.MAX_SAFE_INTEGER
+  return aTime - bTime
+}
+
 interface ScheduleBoardProps {
   routes: ScheduleRoute[]
 }
@@ -83,6 +89,9 @@ export function ScheduleBoard({ routes }: ScheduleBoardProps) {
       const day = route.day_of_week || 'Unscheduled'
       if (!byDay[day]) byDay[day] = []
       byDay[day]!.push(route)
+    })
+    Object.values(byDay).forEach((routes) => {
+      routes.sort((a, b) => sortByDate(a.date, b.date))
     })
     return byDay
   }, [filteredRoutes])
