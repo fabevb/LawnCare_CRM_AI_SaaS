@@ -55,6 +55,7 @@ export function CustomersView({
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const { isAdmin } = useRole()
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [selectedDay, setSelectedDay] = useState<string>('all')
   const [selectedType, setSelectedType] = useState<string>('all')
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>(
@@ -84,6 +85,13 @@ export function CustomersView({
   useEffect(() => {
     setArchiveFilter(initialArchiveFilter ?? 'active')
   }, [initialArchiveFilter])
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [searchQuery])
 
   const handleEdit = (customer: Customer) => {
     setSelectedCustomer(customer)
@@ -157,7 +165,7 @@ export function CustomersView({
     view,
     tableFocusedCustomerId,
     customers,
-    searchQuery,
+    debouncedSearchQuery,
     selectedDay,
     selectedType,
     sourceFilter,
@@ -166,6 +174,11 @@ export function CustomersView({
   ])
 
   // Filter customers
+  const normalizedSearch = useMemo(
+    () => debouncedSearchQuery.trim().toLowerCase(),
+    [debouncedSearchQuery]
+  )
+
   const filteredCustomers = useMemo(() => {
     return customers.filter((customer) => {
       const matchesArchive =
@@ -173,10 +186,11 @@ export function CustomersView({
         (archiveFilter === 'archived' ? customer.archived_at : !customer.archived_at)
 
       const matchesSearch =
-        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (customer.phone && customer.phone.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (customer.email && customer.email.toLowerCase().includes(searchQuery.toLowerCase()))
+        normalizedSearch === '' ||
+        customer.name.toLowerCase().includes(normalizedSearch) ||
+        customer.address.toLowerCase().includes(normalizedSearch) ||
+        (customer.phone && customer.phone.toLowerCase().includes(normalizedSearch)) ||
+        (customer.email && customer.email.toLowerCase().includes(normalizedSearch))
 
       const matchesDay =
         selectedDay === 'all' ||
@@ -196,7 +210,7 @@ export function CustomersView({
   }, [
     customers,
     archiveFilter,
-    searchQuery,
+    normalizedSearch,
     selectedDay,
     selectedType,
     sourceFilter,
@@ -540,14 +554,17 @@ export function CustomersView({
           selectedType !== 'all' ||
           sourceFilter !== 'all' ||
           archiveFilter !== 'active' ||
-          searchQuery) && (
+          debouncedSearchQuery) && (
           <div className="mt-4 flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">Active filters:</span>
-            {searchQuery && (
+            {debouncedSearchQuery && (
               <Badge variant="secondary" className="gap-1">
-                Search: {searchQuery}
+                Search: {debouncedSearchQuery}
                 <button
-                  onClick={() => setSearchQuery('')}
+                  onClick={() => {
+                    setSearchQuery('')
+                    setDebouncedSearchQuery('')
+                  }}
                   className="ml-1 rounded-full hover:bg-slate-200"
                 >
                   x
@@ -603,6 +620,7 @@ export function CustomersView({
               size="sm"
               onClick={() => {
                 setSearchQuery('')
+                setDebouncedSearchQuery('')
                 setSelectedDay('all')
                 setSelectedType('all')
                 setSourceFilter('all')

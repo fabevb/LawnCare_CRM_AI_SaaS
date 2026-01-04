@@ -1,7 +1,16 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { APIProvider, Map, AdvancedMarker, InfoWindow, Pin } from '@vis.gl/react-google-maps'
+import { useState, useMemo, useEffect } from 'react'
+import {
+  APIProvider,
+  Map,
+  AdvancedMarker,
+  InfoWindow,
+  Pin,
+  useMap,
+  useAdvancedMarkerRef,
+} from '@vis.gl/react-google-maps'
+import { MarkerClusterer } from '@googlemaps/markerclusterer'
 import { Customer } from '@/types/database.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +35,35 @@ interface CustomersMapProps {
 
 const DEFAULT_ZOOM = 12
 
+function getMarkerColor(type: string) {
+  switch (type) {
+    case 'Residential':
+      return '#10b981' // emerald-500
+    case 'Commercial':
+      return '#3b82f6' // blue-500
+    case 'Workshop':
+      return '#a855f7' // purple-500
+    default:
+      return '#6b7280' // gray-500
+  }
+}
+
+function getDayColor(day: string | null) {
+  if (!day) return 'bg-gray-100 text-gray-500'
+
+  const dayColors: Record<string, string> = {
+    Monday: 'bg-rose-100 text-rose-700',
+    Tuesday: 'bg-orange-100 text-orange-700',
+    Wednesday: 'bg-amber-100 text-amber-700',
+    Thursday: 'bg-lime-100 text-lime-700',
+    Friday: 'bg-cyan-100 text-cyan-700',
+    Saturday: 'bg-blue-100 text-blue-700',
+    Sunday: 'bg-violet-100 text-violet-700',
+  }
+
+  return dayColors[day] || 'bg-gray-100 text-gray-700'
+}
+
 export function CustomersMap({
   customers,
   focusedCustomerId,
@@ -37,14 +75,14 @@ export function CustomersMap({
 
   // Get customers with valid coordinates
   const customersWithCoords = useMemo(() => {
-    return customers.filter((c) => c.latitude && c.longitude)
+    return customers.filter((c) => c.latitude != null && c.longitude != null)
   }, [customers])
 
   // Calculate map center based on customer locations
   const mapCenter = useMemo(() => {
     if (focusedCustomerId) {
       const target = customersWithCoords.find((c) => c.id === focusedCustomerId)
-      if (target && target.latitude && target.longitude) {
+      if (target && target.latitude != null && target.longitude != null) {
         return { lat: target.latitude, lng: target.longitude }
       }
     }
@@ -60,35 +98,6 @@ export function CustomersMap({
 
     return { lat: avgLat, lng: avgLng }
   }, [customersWithCoords, focusedCustomerId, shopLocation.lat, shopLocation.lng])
-
-  const getMarkerColor = (type: string) => {
-    switch (type) {
-      case 'Residential':
-        return '#10b981' // emerald-500
-      case 'Commercial':
-        return '#3b82f6' // blue-500
-      case 'Workshop':
-        return '#a855f7' // purple-500
-      default:
-        return '#6b7280' // gray-500
-    }
-  }
-
-  const getDayColor = (day: string | null) => {
-    if (!day) return 'bg-gray-100 text-gray-500'
-
-    const dayColors: Record<string, string> = {
-      Monday: 'bg-rose-100 text-rose-700',
-      Tuesday: 'bg-orange-100 text-orange-700',
-      Wednesday: 'bg-amber-100 text-amber-700',
-      Thursday: 'bg-lime-100 text-lime-700',
-      Friday: 'bg-cyan-100 text-cyan-700',
-      Saturday: 'bg-blue-100 text-blue-700',
-      Sunday: 'bg-violet-100 text-violet-700',
-    }
-
-    return dayColors[day] || 'bg-gray-100 text-gray-700'
-  }
 
   if (!apiKey) {
     return (
@@ -129,152 +138,13 @@ export function CustomersMap({
   return (
     <div className="relative h-full">
       <APIProvider apiKey={apiKey}>
-        <Map
-          mapId="customers-map"
-          defaultCenter={mapCenter}
-          defaultZoom={DEFAULT_ZOOM}
-          gestureHandling="greedy"
-          disableDefaultUI={false}
-          zoomControl={true}
-          mapTypeControl={false}
-          streetViewControl={false}
-          fullscreenControl={true}
-          className="h-full w-full"
-          styles={[
-            {
-              featureType: 'poi.business',
-              stylers: [{ visibility: 'off' }],
-            },
-          ]}
-        >
-          {/* Customer Markers */}
-          {customersWithCoords.map((customer) => (
-            <AdvancedMarker
-              key={customer.id}
-              position={{ lat: customer.latitude!, lng: customer.longitude! }}
-              onClick={() => setSelectedCustomer(customer)}
-            >
-              <Pin
-                background={getMarkerColor(customer.type)}
-                borderColor="#ffffff"
-                glyphColor="#ffffff"
-                scale={selectedCustomer?.id === customer.id ? 1.3 : 1}
-              />
-            </AdvancedMarker>
-          ))}
-
-          {/* Info Window */}
-          {selectedCustomer && selectedCustomer.latitude && selectedCustomer.longitude && (
-            <InfoWindow
-              position={{ lat: selectedCustomer.latitude, lng: selectedCustomer.longitude }}
-              onCloseClick={() => setSelectedCustomer(null)}
-              headerContent={
-                <div className="font-semibold text-base">{selectedCustomer.name}</div>
-              }
-            >
-              <div className="min-w-[280px] py-2 space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  {selectedCustomer.address}
-                </div>
-
-                <div className="flex gap-2">
-                  <Badge
-                    variant="secondary"
-                    className={cn(
-                      'font-medium',
-                      selectedCustomer.type === 'Residential'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : selectedCustomer.type === 'Commercial'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-purple-100 text-purple-700'
-                    )}
-                  >
-                    {selectedCustomer.type}
-                  </Badge>
-                  {selectedCustomer.day && (
-                    <Badge variant="secondary" className={cn('font-medium', getDayColor(selectedCustomer.day))}>
-                      {selectedCustomer.day}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                  <div className="flex items-center gap-2 text-sm">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">${Number(selectedCustomer.cost).toFixed(2)}</div>
-                      <div className="text-xs text-muted-foreground">Service cost</div>
-                    </div>
-                  </div>
-                  {selectedCustomer.distance_from_shop_miles && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Ruler className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="font-medium">{selectedCustomer.distance_from_shop_miles.toFixed(1)} mi</div>
-                        <div className="text-xs text-muted-foreground">From shop</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {selectedCustomer.has_additional_work && (
-                  <div className="bg-amber-50 border border-amber-200 rounded p-2 text-sm">
-                    <div className="font-medium text-amber-900">Additional Work</div>
-                    {selectedCustomer.additional_work_cost && (
-                      <div className="text-amber-700">+${Number(selectedCustomer.additional_work_cost).toFixed(2)}</div>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    className="bg-emerald-500 hover:bg-emerald-600 text-white"
-                    asChild
-                  >
-                    <Link href={`/customers/${selectedCustomer.id}`}>
-                      View Details
-                    </Link>
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        if (!selectedCustomer.latitude || !selectedCustomer.longitude) return
-                        const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedCustomer.latitude},${selectedCustomer.longitude}`
-                        window.open(url, '_blank')
-                      }}
-                    >
-                      <Navigation className="mr-2 h-4 w-4" />
-                      Navigate
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        if (onViewInTable) {
-                          onViewInTable(selectedCustomer.id)
-                          return
-                        }
-                        const element = document.querySelector(
-                          `[data-customer-row-id="${selectedCustomer.id}"]`
-                        ) as HTMLElement | null
-                        if (element) {
-                          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                        }
-                      }}
-                    >
-                      View in Table
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </InfoWindow>
-          )}
-        </Map>
+        <CustomersMapContent
+          customers={customersWithCoords}
+          mapCenter={mapCenter}
+          selectedCustomer={selectedCustomer}
+          onSelectCustomer={setSelectedCustomer}
+          onViewInTable={onViewInTable}
+        />
       </APIProvider>
 
       {/* Legend */}
@@ -301,5 +171,202 @@ export function CustomersMap({
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+
+function CustomersMapContent({
+  customers,
+  mapCenter,
+  selectedCustomer,
+  onSelectCustomer,
+  onViewInTable,
+}: {
+  customers: Customer[]
+  mapCenter: { lat: number; lng: number }
+  selectedCustomer: Customer | null
+  onSelectCustomer: (customer: Customer | null) => void
+  onViewInTable?: (customerId: string) => void
+}) {
+  const map = useMap()
+  const [clusterer, setClusterer] = useState<MarkerClusterer | null>(null)
+
+  useEffect(() => {
+    if (!map) return
+    const nextClusterer = new MarkerClusterer({ map })
+    setClusterer(nextClusterer)
+    return () => {
+      nextClusterer.clearMarkers()
+      nextClusterer.setMap(null)
+    }
+  }, [map])
+
+  return (
+    <Map
+      mapId="customers-map"
+      defaultCenter={mapCenter}
+      defaultZoom={DEFAULT_ZOOM}
+      gestureHandling="greedy"
+      disableDefaultUI={false}
+      zoomControl={true}
+      mapTypeControl={false}
+      streetViewControl={false}
+      fullscreenControl={true}
+      className="h-full w-full"
+      styles={[
+        {
+          featureType: 'poi.business',
+          stylers: [{ visibility: 'off' }],
+        },
+      ]}
+    >
+      {customers.map((customer) => (
+        <CustomerMarker
+          key={customer.id}
+          customer={customer}
+          selected={selectedCustomer?.id === customer.id}
+          onSelect={() => onSelectCustomer(customer)}
+          clusterer={clusterer}
+        />
+      ))}
+
+      {selectedCustomer && selectedCustomer.latitude && selectedCustomer.longitude && (
+        <InfoWindow
+          position={{ lat: selectedCustomer.latitude, lng: selectedCustomer.longitude }}
+          onCloseClick={() => onSelectCustomer(null)}
+          headerContent={<div className="font-semibold text-base">{selectedCustomer.name}</div>}
+        >
+          <div className="min-w-[280px] py-2 space-y-3">
+            <div className="text-sm text-muted-foreground">{selectedCustomer.address}</div>
+
+            <div className="flex gap-2">
+              <Badge
+                variant="secondary"
+                className={cn(
+                  'font-medium',
+                  selectedCustomer.type === 'Residential'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : selectedCustomer.type === 'Commercial'
+                      ? 'bg-blue-100 text-blue-700'
+                      : 'bg-purple-100 text-purple-700'
+                )}
+              >
+                {selectedCustomer.type}
+              </Badge>
+              {selectedCustomer.day && (
+                <Badge variant="secondary" className={cn('font-medium', getDayColor(selectedCustomer.day))}>
+                  {selectedCustomer.day}
+                </Badge>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+              <div className="flex items-center gap-2 text-sm">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">${Number(selectedCustomer.cost).toFixed(2)}</div>
+                  <div className="text-xs text-muted-foreground">Service cost</div>
+                </div>
+              </div>
+              {selectedCustomer.distance_from_shop_miles && (
+                <div className="flex items-center gap-2 text-sm">
+                  <Ruler className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <div className="font-medium">{selectedCustomer.distance_from_shop_miles.toFixed(1)} mi</div>
+                    <div className="text-xs text-muted-foreground">From shop</div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedCustomer.has_additional_work && (
+              <div className="bg-amber-50 border border-amber-200 rounded p-2 text-sm">
+                <div className="font-medium text-amber-900">Additional Work</div>
+                {selectedCustomer.additional_work_cost && (
+                  <div className="text-amber-700">+${Number(selectedCustomer.additional_work_cost).toFixed(2)}</div>
+                )}
+              </div>
+            )}
+
+            <div className="grid gap-2 pt-2">
+              <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white" asChild>
+                <Link href={`/customers/${selectedCustomer.id}`}>View Details</Link>
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    if (!selectedCustomer.latitude || !selectedCustomer.longitude) return
+                    const url = `https://www.google.com/maps/dir/?api=1&destination=${selectedCustomer.latitude},${selectedCustomer.longitude}`
+                    window.open(url, '_blank')
+                  }}
+                >
+                  <Navigation className="mr-2 h-4 w-4" />
+                  Navigate
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    if (onViewInTable) {
+                      onViewInTable(selectedCustomer.id)
+                      return
+                    }
+                    const element = document.querySelector(
+                      `[data-customer-row-id="${selectedCustomer.id}"]`
+                    ) as HTMLElement | null
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }
+                  }}
+                >
+                  View in Table
+                </Button>
+              </div>
+            </div>
+          </div>
+        </InfoWindow>
+      )}
+    </Map>
+  )
+}
+
+function CustomerMarker({
+  customer,
+  selected,
+  onSelect,
+  clusterer,
+}: {
+  customer: Customer
+  selected: boolean
+  onSelect: () => void
+  clusterer: MarkerClusterer | null
+}) {
+  const [markerRef, marker] = useAdvancedMarkerRef()
+
+  useEffect(() => {
+    if (!clusterer || !marker) return
+    clusterer.addMarker(marker)
+    return () => {
+      clusterer.removeMarker(marker)
+    }
+  }, [clusterer, marker])
+
+  return (
+    <AdvancedMarker
+      ref={markerRef}
+      position={{ lat: customer.latitude as number, lng: customer.longitude as number }}
+      onClick={onSelect}
+    >
+      <Pin
+        background={getMarkerColor(customer.type)}
+        borderColor="#ffffff"
+        glyphColor="#ffffff"
+        scale={selected ? 1.3 : 1}
+      />
+    </AdvancedMarker>
   )
 }
