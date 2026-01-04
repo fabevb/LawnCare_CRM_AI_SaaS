@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -36,6 +36,7 @@ import { createRoute } from '@/app/(dashboard)/routes/actions'
 import { GOOGLE_MAPS_BROWSER_API_KEY } from '@/lib/config'
 import { haversineMiles } from '@/lib/geo'
 import { optimizeRouteNearestNeighbor } from '@/lib/routes'
+import { RoutePolyline } from './RoutePolyline'
 import { toast } from 'sonner'
 
 interface ShopLocation {
@@ -84,6 +85,12 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [orderLocked, setOrderLocked] = useState(false)
+  const [mapsReady, setMapsReady] = useState(false)
+  const [directionsResult, setDirectionsResult] = useState<google.maps.DirectionsResult | null>(null)
+  const [directionsMetrics, setDirectionsMetrics] = useState<{ distanceMiles: number; durationMinutes: number } | null>(null)
+  const [directionsStatus, setDirectionsStatus] = useState<'idle' | 'loading' | 'ok' | 'fallback'>('idle')
+  const [directionsMessage, setDirectionsMessage] = useState<string | null>(null)
+  const directionsRequestId = useRef(0)
 
   // Filter available customers
   const availableCustomers = useMemo(() => {
@@ -145,6 +152,99 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
     // 20mph average speed + 30min per stop
     return Math.round(totalDistance * 3) + selectedCustomers.length * 30
   }, [totalDistance, selectedCustomers])
+
+  useEffect(() => {
+    if (selectedCustomers.length === 0) {
+      setDirectionsResult(null)
+      setDirectionsMetrics(null)
+      setDirectionsStatus('idle')
+      setDirectionsMessage(null)
+      return
+    }
+
+    if (!apiKey) {
+      setDirectionsResult(null)
+      setDirectionsMetrics(null)
+      setDirectionsStatus('fallback')
+      setDirectionsMessage('Add a Google Maps API key to preview the route. Using estimated distance and time.')
+      return
+    }
+
+    if (!mapsReady) return
+
+    const customersWithCoords = selectedCustomers.filter(
+      (customer) => customer.latitude != null && customer.longitude != null
+    )
+
+    if (customersWithCoords.length !== selectedCustomers.length) {
+      setDirectionsResult(null)
+      setDirectionsMetrics(null)
+      setDirectionsStatus('fallback')
+      setDirectionsMessage('Route preview uses estimates because some stops are missing coordinates.')
+      return
+    }
+
+    const maxWaypoints = 23
+    if (customersWithCoords.length > maxWaypoints) {
+      setDirectionsResult(null)
+      setDirectionsMetrics(null)
+      setDirectionsStatus('fallback')
+      setDirectionsMessage('Route preview uses estimates because Directions API supports up to 23 stops.')
+      return
+    }
+
+    setDirectionsStatus('loading')
+    setDirectionsMessage(null)
+
+    const requestId = directionsRequestId.current + 1
+    directionsRequestId.current = requestId
+
+    const service = new google.maps.DirectionsService()
+    service.route(
+      {
+        origin: { lat: shopLocation.lat, lng: shopLocation.lng },
+        destination: { lat: shopLocation.lat, lng: shopLocation.lng },
+        waypoints: customersWithCoords.map((customer) => ({
+          location: { lat: customer.latitude as number, lng: customer.longitude as number },
+          stopover: true,
+        })),
+        travelMode: google.maps.TravelMode.DRIVING,
+        optimizeWaypoints: false,
+      },
+      (result, status) => {
+        if (requestId !== directionsRequestId.current) return
+        if (status === 'OK' && result) {
+          const legs = result.routes?.[0]?.legs ?? []
+          const totals = legs.reduce(
+            (acc, leg) => {
+              acc.distance += leg.distance?.value ?? 0
+              acc.duration += leg.duration?.value ?? 0
+              return acc
+            },
+            { distance: 0, duration: 0 }
+          )
+
+          setDirectionsResult(result)
+          setDirectionsMetrics({
+            distanceMiles: totals.distance / 1609.34,
+            durationMinutes: Math.round(totals.duration / 60),
+          })
+          setDirectionsStatus('ok')
+          return
+        }
+
+        setDirectionsResult(null)
+        setDirectionsMetrics(null)
+        setDirectionsStatus('fallback')
+        setDirectionsMessage('Directions preview unavailable. Using estimated distance and time.')
+      }
+    )
+  }, [apiKey, mapsReady, selectedCustomers, shopLocation.lat, shopLocation.lng])
+
+  const previewDistance = directionsMetrics ? directionsMetrics.distanceMiles : totalDistance
+  const previewDuration = directionsMetrics ? directionsMetrics.durationMinutes : estimatedTime
+  const shopStopLabel =
+    selectedCustomers.length > 0 ? `1/${selectedCustomers.length + 2}` : '1'
 
   const handleAddCustomer = (customer: Customer) => {
     setSelectedCustomers([...selectedCustomers, customer])
@@ -376,12 +476,12 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
           <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Total Distance</span>
-              <span className="font-medium">{totalDistance.toFixed(1)} mi</span>
+              <span className="font-medium">{previewDistance.toFixed(1)} mi</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Est. Time</span>
               <span className="font-medium">
-                {Math.floor(estimatedTime / 60)}h {estimatedTime % 60}min
+                {Math.floor(previewDuration / 60)}h {previewDuration % 60}min
               </span>
             </div>
             <div className="flex justify-between text-sm">
@@ -391,15 +491,26 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Fuel Cost</span>
               <span className="font-medium text-red-600">
-                -${(totalDistance * 0.15).toFixed(2)}
+                -${(previewDistance * 0.15).toFixed(2)}
               </span>
             </div>
             <div className="flex justify-between text-sm border-t pt-2">
               <span className="font-medium">Net Profit</span>
               <span className="font-bold text-emerald-600">
-                ${(totalRevenue - totalDistance * 0.15).toFixed(2)}
+                ${(totalRevenue - previewDistance * 0.15).toFixed(2)}
               </span>
             </div>
+            {selectedCustomers.length > 0 && directionsStatus === 'loading' && (
+              <div className="text-xs text-muted-foreground">Loading route preview...</div>
+            )}
+            {selectedCustomers.length > 0 && directionsStatus === 'ok' && (
+              <div className="text-xs text-emerald-600">Preview from Directions API</div>
+            )}
+            {selectedCustomers.length > 0 && directionsStatus === 'fallback' && (
+              <div className="text-xs text-amber-600">
+                {directionsMessage || 'Using estimated distance and time.'}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2 mb-2">
@@ -453,7 +564,7 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
                     <GripVertical className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                   )}
                   <div className="h-8 w-8 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    {index + 1}
+                    {index + 2}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">
@@ -525,7 +636,17 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
       {/* Right - Map */}
       <div className="flex-1 relative">
         {apiKey ? (
-          <APIProvider apiKey={apiKey}>
+          <APIProvider
+            apiKey={apiKey}
+            onLoad={() => setMapsReady(true)}
+            onError={() => {
+              setMapsReady(false)
+              setDirectionsResult(null)
+              setDirectionsMetrics(null)
+              setDirectionsStatus('fallback')
+              setDirectionsMessage('Directions preview unavailable. Using estimated distance and time.')
+            }}
+          >
             <Map
               mapId="route-builder-map"
               defaultCenter={shopLocation}
@@ -542,7 +663,10 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
                   glyphColor="#ffffff"
                   scale={1.2}
                 >
-                  <div className="text-xs font-bold">SHOP</div>
+                  <div className="flex flex-col items-center text-[10px] font-bold leading-none text-white">
+                    <span>{shopStopLabel}</span>
+                    <span className="text-[8px] font-medium">SHOP</span>
+                  </div>
                 </Pin>
               </AdvancedMarker>
 
@@ -563,7 +687,7 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
                         scale={1.1}
                       />
                       <div className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white border-2 border-emerald-500 flex items-center justify-center text-xs font-bold">
-                        {index + 1}
+                        {index + 2}
                       </div>
                     </div>
                   </AdvancedMarker>
@@ -589,6 +713,7 @@ export function RouteBuilder({ customers, shopLocation }: RouteBuilderProps) {
                   </AdvancedMarker>
                 )
               })}
+              {directionsResult && <RoutePolyline directions={directionsResult} />}
             </Map>
           </APIProvider>
         ) : (
