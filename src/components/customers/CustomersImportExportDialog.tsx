@@ -216,7 +216,7 @@ export function CustomersImportExportDialog({
     if (!rows.length) return []
 
     const seenKeys = new Set<string>()
-    const dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Workshop']
+    const dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Unscheduled']
     const typeOptions = ['Residential', 'Commercial', 'Workshop']
 
     return rows.map((row, index) => {
@@ -241,10 +241,12 @@ export function CustomersImportExportDialog({
       }
 
       const dayRaw = getValue('day').trim()
+      const dayRawLower = dayRaw.toLowerCase()
       const normalizedDay = dayOptions.find(
-        (option) => option.toLowerCase() === dayRaw.toLowerCase()
+        (option) => option.toLowerCase() === dayRawLower
       )
-      if (dayRaw && !normalizedDay) {
+      const isWorkshopDay = dayRawLower === 'workshop'
+      if (dayRaw && !normalizedDay && !isWorkshopDay) {
         errors.push('Invalid day')
       }
 
@@ -299,7 +301,9 @@ export function CustomersImportExportDialog({
         email: emailRaw || null,
         type: normalizedType ?? undefined,
         cost: cost ?? undefined,
-        day: normalizedDay ?? null,
+        day: !isWorkshopDay && normalizedDay && normalizedDay.toLowerCase() !== 'unscheduled'
+          ? normalizedDay
+          : null,
         route_order: routeOrder == null ? null : Math.round(routeOrder),
         distance_from_shop_km: distanceKm,
         distance_from_shop_miles: distanceMiles,

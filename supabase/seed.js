@@ -74,7 +74,7 @@ function parseCustomers() {
       address,
       type: type || 'Residential',
       cost: parseCurrency(cost) ?? 0,
-      day: day || null,
+      day: day && day !== 'Workshop' ? day : null,
       route_order: order ? parseInt(order, 10) : null,
       distance_from_shop_km: distKm ? parseFloat(distKm) : null,
       distance_from_shop_miles: distMiles ? parseFloat(distMiles) : null,
@@ -140,7 +140,7 @@ async function insertCustomers(supabase, customers) {
 
 async function insertRoutes(supabase, customers) {
   const grouped = customers.reduce((acc, customer) => {
-    if (!customer.day || customer.day === 'Workshop') {
+    if (!customer.day) {
       return acc
     }
     if (!acc[customer.day]) {

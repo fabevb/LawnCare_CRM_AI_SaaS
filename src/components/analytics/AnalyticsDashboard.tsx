@@ -68,7 +68,7 @@ type RouteStatistic = {
   estimated_fuel_cost: number | null
 }
 const ROUTE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-const CUSTOMER_DAYS = [...ROUTE_DAYS, 'Workshop']
+const CUSTOMER_DAYS = [...ROUTE_DAYS, 'Unscheduled']
 const TYPES = ['Residential', 'Commercial', 'Workshop']
 
 const DAY_COLORS: Record<string, string> = {
@@ -229,7 +229,8 @@ export function AnalyticsDashboard({
   const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase()
     return customers.filter((customer) => {
-      if (selectedDays.length > 0 && !selectedDays.includes(customer.day || '')) {
+      const customerDay = customer.day || 'Unscheduled'
+      if (selectedDays.length > 0 && !selectedDays.includes(customerDay)) {
         return false
       }
       if (typeFilter !== 'all' && (customer.type || '') !== typeFilter) {
@@ -305,6 +306,11 @@ export function AnalyticsDashboard({
 
   const hasRouteData = routeStatsInRange.length > 0
   const hasServiceData = serviceHistoryInRange.length > 0
+
+  const selectedRouteDays = useMemo(
+    () => selectedDays.filter((day) => ROUTE_DAYS.includes(day)),
+    [selectedDays]
+  )
 
   const routesByWeekday = useMemo(() => {
     const counts = new Map<string, number>()
@@ -660,7 +666,7 @@ export function AnalyticsDashboard({
                   <FilterableBarChart
                     data={routesByWeekday}
                     color="#ef4444"
-                    selectedLabels={selectedDays}
+                    selectedLabels={selectedRouteDays}
                     onSelect={handleDaySelect}
                   />
                 ) : (
@@ -680,7 +686,7 @@ export function AnalyticsDashboard({
                     data={revenueByWeekday}
                     color="#22c55e"
                     currency
-                    selectedLabels={selectedDays}
+                    selectedLabels={selectedRouteDays}
                     onSelect={handleDaySelect}
                   />
                 ) : (

@@ -41,7 +41,7 @@ const ImportRowSchema = z.object({
       'Friday',
       'Saturday',
       'Sunday',
-      'Workshop',
+      'unscheduled',
     ])
     .nullable()
     .optional(),
@@ -519,7 +519,7 @@ export async function importCustomers(input: {
         email: row.email?.trim().toLowerCase() || null,
         type: row.type ?? 'Residential',
         cost: typeof row.cost === 'number' ? row.cost : 0,
-        day: row.day ?? null,
+        day: row.day === 'unscheduled' ? null : row.day ?? null,
         route_order: row.route_order ?? null,
         distance_from_shop_km: row.distance_from_shop_km ?? null,
         distance_from_shop_miles: row.distance_from_shop_miles ?? null,

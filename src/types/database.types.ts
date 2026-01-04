@@ -18,7 +18,7 @@ export interface Database {
           email: string | null
           type: 'Residential' | 'Commercial' | 'Workshop'
           cost: number
-          day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Workshop' | null
+          day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | null
           route_order: number | null
           distance_from_shop_km: number | null
           distance_from_shop_miles: number | null
@@ -38,7 +38,7 @@ export interface Database {
           email?: string | null
           type: 'Residential' | 'Commercial' | 'Workshop'
           cost?: number
-          day?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Workshop' | null
+          day?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | null
           route_order?: number | null
           distance_from_shop_km?: number | null
           distance_from_shop_miles?: number | null
@@ -58,7 +58,7 @@ export interface Database {
           email?: string | null
           type?: 'Residential' | 'Commercial' | 'Workshop'
           cost?: number
-          day?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | 'Workshop' | null
+          day?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday' | null
           route_order?: number | null
           distance_from_shop_km?: number | null
           distance_from_shop_miles?: number | null

@@ -1,5 +1,5 @@
 Name,Address,Type,Cost,Day,Order,Distance from shop_km,distance_from_shop_miles,Additional Work,Additional Work cost
-Olivia Johnson,"16 Cherokee Dr, St Peters, MO 63376",Workshop,$0.00,Workshop,,10.07,6.25720597,No,
+Olivia Johnson,"16 Cherokee Dr, St Peters, MO 63376",Workshop,$0.00,,,10.07,6.25720597,No,
 Liam Anderson,"3001 Flamingo Dr, Saint Charles, MO 63301-1238, USA",Residential,$40.00,Tuesday,,9.82,6.10186322,Yes,
 Emma Thompson,"501 N 7th St, Saint Charles, MO 63301-1810, USA",Residential,$40.00,Tuesday,,10.48,6.51196808,No,
 Noah Martinez,"901 N 4th St, Saint Charles, MO 63301-2054, USA",Residential,$40.00,Tuesday,,10.45,6.49332695,No,

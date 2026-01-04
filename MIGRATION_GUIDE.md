@@ -23,7 +23,7 @@ Required columns:
 Optional columns:
 - `Type` (Residential, Commercial, Workshop)
 - `Cost`
-- `Day` (Monday-Sunday, Workshop, or leave blank for Unscheduled)
+- `Day` (Monday-Sunday, or leave blank for Unscheduled)
 - `Order` (route order integer)
 - `Distance from shop_km`
 - `distance_from_shop_miles`
@@ -47,7 +47,7 @@ Duplicates are detected by **Name + Address**. You can choose to skip or keep du
 
 ## Workshop and Unscheduled Rules
 - **Type**: `Workshop` is a valid customer type.
-- **Day**: Leave blank for **Unscheduled**. You can also use `Workshop` as a service day.
+- **Day**: Leave blank for **Unscheduled**. `Workshop` is not a service day.
 
 ## Geocoding and Addresses
 - The CRM geocodes addresses to place customers on maps and calculate distances.
