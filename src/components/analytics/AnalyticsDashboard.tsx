@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps'
@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { GOOGLE_MAPS_BROWSER_API_KEY } from '@/lib/config'
 import {
   ResponsiveContainer,
@@ -16,10 +18,14 @@ import {
   YAxis,
   Tooltip as RechartsTooltip,
   Cell,
+  LineChart as RechartsLineChart,
+  Line,
+  CartesianGrid,
 } from 'recharts'
 
 type ServiceHistoryEntry = {
   cost: number | null
+  service_date: string
 }
 
 type CustomerPoint = {
@@ -35,6 +41,36 @@ type CustomerPoint = {
   longitude: number | null
 }
 
+type CustomerMetric = {
+  id: string
+  name: string
+  type: string | null
+  base_cost: number | null
+  total_services: number | null
+  lifetime_revenue: number | null
+  avg_service_cost: number | null
+  last_service_date: string | null
+  avg_rating: number | null
+  services_last_90_days: number | null
+}
+
+type RouteStatistic = {
+  id: string
+  date: string
+  day_of_week: string | null
+  status: string | null
+  total_stops: number | null
+  completed_stops: number | null
+  skipped_stops: number | null
+  total_distance_miles: number | null
+  total_duration_minutes: number | null
+  total_revenue: number | null
+  estimated_fuel_cost: number | null
+}
+const ROUTE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const CUSTOMER_DAYS = [...ROUTE_DAYS, 'Workshop']
+const TYPES = ['Residential', 'Commercial', 'Workshop']
+
 const DAY_COLORS: Record<string, string> = {
   Sunday: '#a855f7',
   Monday: '#14b8a6',
@@ -46,18 +82,94 @@ const DAY_COLORS: Record<string, string> = {
   Workshop: '#22c55e',
 }
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Workshop']
-const TYPES = ['Residential', 'Commercial', 'Workshop']
+const MS_PER_DAY = 24 * 60 * 60 * 1000
 
-function formatCurrency(value: number) {
+function formatCurrency(value: number, digits = 0) {
   return value.toLocaleString(undefined, {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   })
 }
 
+function formatNumber(value: number, digits = 0) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  })
+}
+
+function formatPercent(value: number, digits = 0) {
+  return `${value.toFixed(digits)}%`
+}
+
+function safeNumber(value: number | null | undefined) {
+  return Number(value || 0)
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function parseDateInput(value: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function daysBetween(start: Date, end: Date) {
+  return Math.round((end.getTime() - start.getTime()) / MS_PER_DAY)
+}
+
+function isDateInRange(value: string, start: Date, end: Date) {
+  const date = parseDateInput(value)
+  if (!date) return false
+  return date >= start && date <= end
+}
+
+type RouteTotals = {
+  routes: number
+  totalStops: number
+  completedStops: number
+  skippedStops: number
+  totalRevenue: number
+  totalDistance: number
+  totalDuration: number
+}
+
+function buildRouteTotals(rows: RouteStatistic[]): RouteTotals {
+  return rows.reduce(
+    (acc, row) => {
+      acc.routes += 1
+      acc.totalStops += safeNumber(row.total_stops)
+      acc.completedStops += safeNumber(row.completed_stops)
+      acc.skippedStops += safeNumber(row.skipped_stops)
+      acc.totalRevenue += safeNumber(row.total_revenue)
+      acc.totalDistance += safeNumber(row.total_distance_miles)
+      acc.totalDuration += safeNumber(row.total_duration_minutes)
+      return acc
+    },
+    {
+      routes: 0,
+      totalStops: 0,
+      completedStops: 0,
+      skippedStops: 0,
+      totalRevenue: 0,
+      totalDistance: 0,
+      totalDuration: 0,
+    }
+  )
+}
 interface ShopLocation {
   lat: number
   lng: number
@@ -66,87 +178,217 @@ interface ShopLocation {
 
 interface AnalyticsDashboardProps {
   customers: CustomerPoint[]
+  customerMetrics: CustomerMetric[]
+  routeStats: RouteStatistic[]
   serviceHistory: ServiceHistoryEntry[]
   shopLocation: ShopLocation
 }
 
-export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({
+  customers,
+  customerMetrics,
+  routeStats,
+  serviceHistory,
+  shopLocation,
+}: AnalyticsDashboardProps) {
   const [search, setSearch] = useState('')
   const [selectedDays, setSelectedDays] = useState<string[]>([])
-  const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [rangeStart, setRangeStart] = useState(() => formatDateInput(addDays(new Date(), -30)))
+  const [rangeEnd, setRangeEnd] = useState(() => formatDateInput(new Date()))
+  const [compareEnabled, setCompareEnabled] = useState(false)
 
-  const filtered = useMemo(() => {
+  const normalizedRange = useMemo(() => {
+    const today = new Date()
+    const fallbackStart = addDays(today, -30)
+    const startValue = parseDateInput(rangeStart) ?? fallbackStart
+    const endValue = parseDateInput(rangeEnd) ?? today
+
+    if (startValue <= endValue) return { start: startValue, end: endValue }
+    return { start: endValue, end: startValue }
+  }, [rangeStart, rangeEnd])
+
+  const rangeDays = useMemo(() => {
+    return Math.max(1, daysBetween(normalizedRange.start, normalizedRange.end) + 1)
+  }, [normalizedRange])
+
+  const compareRange = useMemo(() => {
+    if (!compareEnabled) return null
+    const compareEnd = addDays(normalizedRange.start, -1)
+    const compareStart = addDays(compareEnd, -(rangeDays - 1))
+    return { start: compareStart, end: compareEnd }
+  }, [compareEnabled, normalizedRange.start, rangeDays])
+
+  const compareLabel = useMemo(() => {
+    if (!compareRange) return ''
+    return `${formatDateInput(compareRange.start)} to ${formatDateInput(compareRange.end)}`
+  }, [compareRange])
+
+  const filteredCustomers = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return customers.filter((c) => {
-      if (
-        selectedDays.length > 0 &&
-        !selectedDays.includes((c.day || '').toLowerCase())
-      ) {
+    return customers.filter((customer) => {
+      if (selectedDays.length > 0 && !selectedDays.includes(customer.day || '')) {
         return false
       }
-      if (typeFilter !== 'all' && (c.type || '').toLowerCase() !== typeFilter.toLowerCase()) {
+      if (typeFilter !== 'all' && (customer.type || '') !== typeFilter) {
         return false
       }
       if (!query) return true
       return (
-        (c.name || '').toLowerCase().includes(query) ||
-        (c.address || '').toLowerCase().includes(query)
+        (customer.name || '').toLowerCase().includes(query) ||
+        (customer.address || '').toLowerCase().includes(query)
       )
     })
   }, [customers, search, selectedDays, typeFilter])
 
-  const totalRevenue = filtered.reduce(
-    (sum, c) => sum + Number(c.cost || 0) + Number(c.additional_work_cost || 0),
-    0
-  )
-  const addOnRevenue = filtered
-    .filter((c) => c.has_additional_work)
-    .reduce((sum, c) => sum + Number(c.additional_work_cost || 0), 0)
-  const avgRevenuePerStop = filtered.length > 0 ? totalRevenue / filtered.length : 0
+  const routeStatsInRange = useMemo(() => {
+    return routeStats.filter((row) =>
+      row.date ? isDateInRange(row.date, normalizedRange.start, normalizedRange.end) : false
+    )
+  }, [routeStats, normalizedRange])
+
+  const routeStatsCompare = useMemo(() => {
+    if (!compareRange) return []
+    return routeStats.filter((row) =>
+      row.date ? isDateInRange(row.date, compareRange.start, compareRange.end) : false
+    )
+  }, [routeStats, compareRange])
+
+  const serviceHistoryInRange = useMemo(() => {
+    return serviceHistory.filter((row) =>
+      row.service_date
+        ? isDateInRange(row.service_date, normalizedRange.start, normalizedRange.end)
+        : false
+    )
+  }, [serviceHistory, normalizedRange])
+
+  const serviceHistoryCompare = useMemo(() => {
+    if (!compareRange) return []
+    return serviceHistory.filter((row) =>
+      row.service_date ? isDateInRange(row.service_date, compareRange.start, compareRange.end) : false
+    )
+  }, [serviceHistory, compareRange])
+
+  const routeTotals = useMemo(() => buildRouteTotals(routeStatsInRange), [routeStatsInRange])
+  const routeTotalsCompare = useMemo(() => buildRouteTotals(routeStatsCompare), [routeStatsCompare])
+
   const actualRevenue = useMemo(() => {
-    return (serviceHistory || []).reduce((sum, entry) => sum + Number(entry.cost || 0), 0)
-  }, [serviceHistory])
+    return serviceHistoryInRange.reduce((sum, entry) => sum + safeNumber(entry.cost), 0)
+  }, [serviceHistoryInRange])
 
-  const routesPerDay = useMemo(() => {
-    const counts: Record<string, number> = {}
-    filtered.forEach((c) => {
-      const day = c.day || 'Unscheduled'
-      counts[day] = (counts[day] || 0) + 1
+  const actualRevenueCompare = useMemo(() => {
+    return serviceHistoryCompare.reduce((sum, entry) => sum + safeNumber(entry.cost), 0)
+  }, [serviceHistoryCompare])
+
+  const revenueTotal = actualRevenue > 0 ? actualRevenue : routeTotals.totalRevenue
+  const revenueTotalCompare = compareRange
+    ? actualRevenueCompare > 0
+      ? actualRevenueCompare
+      : routeTotalsCompare.totalRevenue
+    : null
+
+  const revenuePerDay = revenueTotal / rangeDays
+  const revenuePerDayCompare = compareRange ? (revenueTotalCompare || 0) / rangeDays : null
+
+  const avgStopsPerDay = routeTotals.totalStops / rangeDays
+  const avgStopsPerDayCompare = compareRange ? routeTotalsCompare.totalStops / rangeDays : null
+
+  const completionRate = routeTotals.totalStops
+    ? (routeTotals.completedStops / routeTotals.totalStops) * 100
+    : 0
+  const completionRateCompare =
+    compareRange && routeTotalsCompare.totalStops
+      ? (routeTotalsCompare.completedStops / routeTotalsCompare.totalStops) * 100
+      : null
+
+  const hasRouteData = routeStatsInRange.length > 0
+  const hasServiceData = serviceHistoryInRange.length > 0
+
+  const routesByWeekday = useMemo(() => {
+    const counts = new Map<string, number>()
+    routeStatsInRange.forEach((row) => {
+      const day = row.day_of_week
+      if (!day) return
+      counts.set(day, (counts.get(day) || 0) + 1)
     })
-    return Object.entries(counts).sort((a, b) => (DAYS.indexOf(a[0]) - DAYS.indexOf(b[0])))
-  }, [filtered])
+    return ROUTE_DAYS.map((day) => ({ label: day, value: counts.get(day) || 0 }))
+  }, [routeStatsInRange])
 
-  const revenuePerDay = useMemo(() => {
-    const sums: Record<string, number> = {}
-    filtered.forEach((c) => {
-      const day = c.day || 'Unscheduled'
-      const value = Number(c.cost || 0) + Number(c.additional_work_cost || 0)
-      sums[day] = (sums[day] || 0) + value
+  const revenueByWeekday = useMemo(() => {
+    const totals = new Map<string, number>()
+    routeStatsInRange.forEach((row) => {
+      const day = row.day_of_week
+      if (!day) return
+      totals.set(day, (totals.get(day) || 0) + safeNumber(row.total_revenue))
     })
-    return Object.entries(sums).sort((a, b) => (DAYS.indexOf(a[0]) - DAYS.indexOf(b[0])))
-  }, [filtered])
+    return ROUTE_DAYS.map((day) => ({ label: day, value: totals.get(day) || 0 }))
+  }, [routeStatsInRange])
 
-  const routesPerDayData = routesPerDay.map(([label, value]) => ({ label, value }))
-  const revenuePerDayData = revenuePerDay.map(([label, value]) => ({ label, value }))
+  const completionTrendData = useMemo(() => {
+    const totals = new Map<string, { completed: number; total: number }>()
+    routeStatsInRange.forEach((row) => {
+      if (!row.date) return
+      const entry = totals.get(row.date) || { completed: 0, total: 0 }
+      entry.completed += safeNumber(row.completed_stops)
+      entry.total += safeNumber(row.total_stops)
+      totals.set(row.date, entry)
+    })
+    return Array.from(totals.entries())
+      .sort(
+        ([a], [b]) =>
+          new Date(`${a}T00:00:00`).getTime() - new Date(`${b}T00:00:00`).getTime()
+      )
+      .map(([date, entry]) => ({
+        date,
+        completionRate: entry.total ? Math.round((entry.completed / entry.total) * 1000) / 10 : 0,
+      }))
+  }, [routeStatsInRange])
 
-  const addOnStats = useMemo(() => {
-    const yes = filtered.filter((c) => c.has_additional_work).length
-    const total = filtered.length || 1
-    const yesPct = (yes / total) * 100
-    return { yes, yesPct, noPct: 100 - yesPct }
-  }, [filtered])
+  const customerSummary = useMemo(() => {
+    const count = customerMetrics.length
+    if (!count) {
+      return {
+        count: 0,
+        avgRating: 0,
+        avgLtv: 0,
+        avgServiceCost: 0,
+        activeCustomers: 0,
+      }
+    }
+
+    let sumRating = 0
+    let sumLtv = 0
+    let sumServiceCost = 0
+    let activeCustomers = 0
+
+    customerMetrics.forEach((metric) => {
+      sumRating += safeNumber(metric.avg_rating)
+      sumLtv += safeNumber(metric.lifetime_revenue)
+      sumServiceCost += safeNumber(metric.avg_service_cost)
+      if (safeNumber(metric.services_last_90_days) > 0) {
+        activeCustomers += 1
+      }
+    })
+
+    return {
+      count,
+      avgRating: sumRating / count,
+      avgLtv: sumLtv / count,
+      avgServiceCost: sumServiceCost / count,
+      activeCustomers,
+    }
+  }, [customerMetrics])
 
   const hasMap = Boolean(GOOGLE_MAPS_BROWSER_API_KEY)
 
   const handleDaySelect = (label: string) => {
-    const value = label.toLowerCase()
     setSelectedDays((prev) => {
-      if (prev.includes(value)) {
-        return prev.filter((d) => d !== value)
+      if (prev.includes(label)) {
+        return prev.filter((day) => day !== label)
       }
-      return [...prev, value]
+      return [...prev, label]
     })
   }
 
@@ -162,90 +404,129 @@ export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: 
       <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Lawn Care Proof of Concept</h1>
-            <p className="text-sm text-slate-500">Live service metrics and route performance</p>
+            <h1 className="text-2xl font-semibold text-slate-900">Lawn Care CRM Analytics</h1>
+            <p className="text-sm text-slate-500">Service metrics, revenue, and route performance</p>
           </div>
-          <div className="flex items-center gap-2 lg:hidden">
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-300 text-slate-700"
-              onClick={() => setFiltersOpen((v) => !v)}
-            >
-              {filtersOpen ? 'Hide filters' : 'Show filters'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-slate-300 text-slate-700"
-              onClick={resetFilters}
-            >
-              Reset
-            </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="range-start" className="text-xs text-slate-600">
+                From
+              </Label>
+              <Input
+                id="range-start"
+                type="date"
+                value={rangeStart}
+                onChange={(e) => setRangeStart(e.target.value)}
+                className="w-full min-w-[140px] bg-white border-slate-300 text-slate-900"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Label htmlFor="range-end" className="text-xs text-slate-600">
+                To
+              </Label>
+              <Input
+                id="range-end"
+                type="date"
+                value={rangeEnd}
+                onChange={(e) => setRangeEnd(e.target.value)}
+                className="w-full min-w-[140px] bg-white border-slate-300 text-slate-900"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="compare-period"
+                checked={compareEnabled}
+                onCheckedChange={(value) => setCompareEnabled(value)}
+              />
+              <Label htmlFor="compare-period" className="text-xs text-slate-600">
+                Compare period
+              </Label>
+            </div>
+            {compareEnabled && compareLabel && (
+              <div className="text-xs text-slate-500">Prev: {compareLabel}</div>
+            )}
           </div>
-          <div
-            className={`flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center ${
-              filtersOpen ? 'flex' : 'hidden'
-            } lg:flex`}
+        </div>
+        <div className="mt-4 flex items-center gap-2 lg:hidden">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-300 text-slate-700"
+            onClick={() => setFiltersOpen((v) => !v)}
           >
-            <Input
-              placeholder="Search name or address"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full sm:w-56 bg-white border-slate-300 text-slate-900"
-            />
-            <Select
-              value={
-                selectedDays.length === 0
-                  ? 'all'
-                  : selectedDays.length === 1
+            {filtersOpen ? 'Hide filters' : 'Show filters'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-300 text-slate-700"
+            onClick={resetFilters}
+          >
+            Reset
+          </Button>
+        </div>
+        <div
+          className={`mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center ${
+            filtersOpen ? 'flex' : 'hidden'
+          } lg:flex`}
+        >
+          <Input
+            placeholder="Search name or address"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full sm:w-56 bg-white border-slate-300 text-slate-900"
+          />
+          <Select
+            value={
+              selectedDays.length === 0
+                ? 'all'
+                : selectedDays.length === 1
                   ? selectedDays[0]
                   : 'multi'
+            }
+            onValueChange={(value) => {
+              if (value === 'all') {
+                setSelectedDays([])
+              } else if (value !== 'multi') {
+                setSelectedDays([value])
               }
-              onValueChange={(v) => {
-                if (v === 'all') {
-                  setSelectedDays([])
-                } else if (v !== 'multi') {
-                  setSelectedDays([v])
-                }
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-44 bg-white border-slate-300 text-slate-900">
-                <SelectValue placeholder="Day" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Days</SelectItem>
-                <SelectItem value="multi" disabled>
-                  Multiple (use chart)
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-44 bg-white border-slate-300 text-slate-900">
+              <SelectValue placeholder="Day" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Days</SelectItem>
+              <SelectItem value="multi" disabled>
+                Multiple (use chart)
+              </SelectItem>
+              {CUSTOMER_DAYS.map((day) => (
+                <SelectItem key={day} value={day}>
+                  {day}
                 </SelectItem>
-                {DAYS.map((day) => (
-                  <SelectItem key={day} value={day.toLowerCase()}>
-                    {day}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-full sm:w-40 bg-white border-slate-300 text-slate-900">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {TYPES.map((t) => (
-                  <SelectItem key={t} value={t.toLowerCase()}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              className="hidden border-slate-300 text-slate-700 lg:inline-flex"
-              onClick={resetFilters}
-            >
-              Reset
-            </Button>
-          </div>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-full sm:w-40 bg-white border-slate-300 text-slate-900">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            className="hidden border-slate-300 text-slate-700 lg:inline-flex"
+            onClick={resetFilters}
+          >
+            Reset
+          </Button>
         </div>
       </div>
 
@@ -259,11 +540,9 @@ export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: 
                   variant="secondary"
                   size="sm"
                   className="bg-slate-100 text-slate-800 hover:bg-slate-200"
-                  onClick={() =>
-                    setSelectedDays((prev) => prev.filter((d) => d !== day))
-                  }
+                  onClick={() => setSelectedDays((prev) => prev.filter((value) => value !== day))}
                 >
-                  Day: {day.charAt(0).toUpperCase() + day.slice(1)} ×
+                  Day: {day}
                 </Button>
               ))}
               {typeFilter !== 'all' && (
@@ -273,7 +552,7 @@ export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: 
                   className="bg-slate-100 text-slate-800 hover:bg-slate-200"
                   onClick={() => setTypeFilter('all')}
                 >
-                  Type: {typeFilter} ×
+                  Type: {typeFilter}
                 </Button>
               )}
               {search && (
@@ -283,56 +562,89 @@ export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: 
                   className="bg-slate-100 text-slate-800 hover:bg-slate-200"
                   onClick={() => setSearch('')}
                 >
-                  Search: “{search}” ×
+                  Search: {search}
                 </Button>
               )}
             </div>
           )}
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              title="Revenue per day"
+              description="Actual or planned revenue"
+              value={formatCurrency(revenuePerDay, 0)}
+              subValue={
+                hasRouteData || hasServiceData
+                  ? hasServiceData
+                    ? `Actual: ${formatCurrency(actualRevenue, 0)}${
+                        routeTotals.totalRevenue
+                          ? ` | Planned: ${formatCurrency(routeTotals.totalRevenue, 0)}`
+                          : ''
+                      }`
+                    : `Planned: ${formatCurrency(routeTotals.totalRevenue, 0)}`
+                  : 'No revenue data for selected range.'
+              }
+              compareValue={
+                compareRange ? `Prev: ${formatCurrency(revenuePerDayCompare || 0, 0)}` : undefined
+              }
+            />
+            <KpiCard
+              title="Average stops per day"
+              description="Stops across routes"
+              value={formatNumber(avgStopsPerDay, 1)}
+              subValue={
+                hasRouteData
+                  ? `Total stops: ${formatNumber(routeTotals.totalStops)} | Routes: ${
+                      routeTotals.routes
+                    }`
+                  : 'No route data for selected range.'
+              }
+              compareValue={
+                compareRange ? `Prev: ${formatNumber(avgStopsPerDayCompare || 0, 1)}` : undefined
+              }
+            />
+            <KpiCard
+              title="Completion rate"
+              description="Completed stops"
+              value={formatPercent(completionRate, 1)}
+              subValue={
+                hasRouteData
+                  ? `Completed: ${formatNumber(routeTotals.completedStops)} / ${formatNumber(
+                      routeTotals.totalStops
+                    )}`
+                  : 'No route data for selected range.'
+              }
+              compareValue={
+                compareRange && completionRateCompare != null
+                  ? `Prev: ${formatPercent(completionRateCompare, 1)}`
+                  : undefined
+              }
+            />
             <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Record Count</CardTitle>
-                <CardDescription className="text-slate-500">Total stops</CardDescription>
+                <CardTitle className="text-sm font-medium">Customer snapshot</CardTitle>
+                <CardDescription className="text-slate-500">From customer metrics</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{filtered.length}</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Planned revenue</CardTitle>
-                <CardDescription className="text-slate-500">Scheduled vs. serviced</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{formatCurrency(totalRevenue)}</div>
-                <div className="text-xs text-slate-500">Actual: {formatCurrency(actualRevenue)}</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Revenue per stop average</CardTitle>
-                <CardDescription className="text-slate-500">Avg cost including add-ons</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">
-                  {avgRevenuePerStop.toLocaleString(undefined, {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 2,
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Add-on service revenue</CardTitle>
-                <CardDescription className="text-slate-500">Upsell dollars</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{formatCurrency(addOnRevenue)}</div>
+              <CardContent className="space-y-1">
+                <div className="text-3xl font-bold">{formatNumber(customerSummary.count)}</div>
+                {customerSummary.count > 0 ? (
+                  <>
+                    <div className="text-xs text-slate-500">
+                      Active last 90 days: {formatNumber(customerSummary.activeCustomers)}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Avg rating: {formatNumber(customerSummary.avgRating, 1)}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Avg LTV: {formatCurrency(customerSummary.avgLtv, 0)}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Avg service: {formatCurrency(customerSummary.avgServiceCost, 0)}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-xs text-slate-500">No customer metrics available.</div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -340,82 +652,113 @@ export function AnalyticsDashboard({ customers, serviceHistory, shopLocation }: 
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="bg-white text-slate-900 border-slate-200 shadow-sm lg:col-span-1">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Routes per day</CardTitle>
+                <CardTitle className="text-sm font-medium">Routes by weekday</CardTitle>
+                <CardDescription className="text-slate-500">Count of routes in range</CardDescription>
               </CardHeader>
               <CardContent className="pb-6">
-                <FilterableBarChart
-                  data={routesPerDayData}
-                  color="#ef4444"
-                  selectedLabels={selectedDays}
-                  onSelect={handleDaySelect}
-                />
-              </CardContent>
-            </Card>
-
-              <Card className="bg-white text-slate-900 border-slate-200 shadow-sm lg:col-span-1">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Revenue per day</CardTitle>
-              </CardHeader>
-              <CardContent className="pb-6">
-                <FilterableBarChart
-                  data={revenuePerDayData}
-                  color="#22c55e"
-                  currency
-                  selectedLabels={selectedDays}
-                  onSelect={handleDaySelect}
-                />
+                {hasRouteData ? (
+                  <FilterableBarChart
+                    data={routesByWeekday}
+                    color="#ef4444"
+                    selectedLabels={selectedDays}
+                    onSelect={handleDaySelect}
+                  />
+                ) : (
+                  <EmptyState message="No routes in this date range." />
+                )}
               </CardContent>
             </Card>
 
             <Card className="bg-white text-slate-900 border-slate-200 shadow-sm lg:col-span-1">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">
-                  Percentage of stops with add-on services
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Revenue by weekday</CardTitle>
+                <CardDescription className="text-slate-500">Planned revenue totals</CardDescription>
               </CardHeader>
-              <CardContent className="flex items-center justify-center">
-                <PieChart yesPct={addOnStats.yesPct} />
-                <div className="ml-4 space-y-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block h-3 w-3 rounded-full bg-[#a855f7]" />
-                    <span>No</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-block h-3 w-3 rounded-full bg-[#facc15]" />
-                    <span>Yes</span>
-                  </div>
-                </div>
+              <CardContent className="pb-6">
+                {hasRouteData ? (
+                  <FilterableBarChart
+                    data={revenueByWeekday}
+                    color="#22c55e"
+                    currency
+                    selectedLabels={selectedDays}
+                    onSelect={handleDaySelect}
+                  />
+                ) : (
+                  <EmptyState message="No revenue data in this date range." />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white text-slate-900 border-slate-200 shadow-sm lg:col-span-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Completion trend</CardTitle>
+                <CardDescription className="text-slate-500">
+                  Completed stops by route date
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pb-6">
+                {completionTrendData.length > 0 ? (
+                  <CompletionTrend data={completionTrendData} />
+                ) : (
+                  <EmptyState message="No completion data in this date range." />
+                )}
               </CardContent>
             </Card>
           </div>
 
-            <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Service map</CardTitle>
-                <CardDescription className="text-slate-500">
-                  Stops colored by assigned day
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="h-[320px] sm:h-[420px] lg:h-[480px]">
-                {hasMap ? (
-                  <APIProvider apiKey={GOOGLE_MAPS_BROWSER_API_KEY}>
-                    <MapSection
-                      filtered={filtered}
-                      selectedCustomerId={selectedCustomerId}
-                      onSelectCustomer={setSelectedCustomerId}
-                      shopLocation={shopLocation}
-                    />
-                  </APIProvider>
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-600">
-                    Add your Google Maps API key to view the map.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Service map</CardTitle>
+              <CardDescription className="text-slate-500">Stops colored by assigned day</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[320px] sm:h-[420px] lg:h-[480px]">
+              {hasMap ? (
+                <APIProvider apiKey={GOOGLE_MAPS_BROWSER_API_KEY}>
+                  <MapSection
+                    filtered={filteredCustomers}
+                    selectedCustomerId={selectedCustomerId}
+                    onSelectCustomer={setSelectedCustomerId}
+                    shopLocation={shopLocation}
+                  />
+                </APIProvider>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-lg bg-slate-100 text-sm text-slate-600">
+                  Add your Google Maps API key to view the map.
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
+  )
+}
+
+function KpiCard({
+  title,
+  description,
+  value,
+  subValue,
+  compareValue,
+}: {
+  title: string
+  description?: string
+  value: string
+  subValue?: string
+  compareValue?: string
+}) {
+  return (
+    <Card className="bg-white text-slate-900 border-slate-200 shadow-sm">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {description ? <CardDescription className="text-slate-500">{description}</CardDescription> : null}
+      </CardHeader>
+      <CardContent>
+        <div className="text-3xl font-bold">{value}</div>
+        {subValue ? <div className="text-xs text-slate-500">{subValue}</div> : null}
+        {compareValue ? <div className="text-xs text-slate-500">{compareValue}</div> : null}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -444,11 +787,11 @@ function CustomTooltip({
   currency?: boolean
 }) {
   if (!active || !payload || !payload.length) return null
-  const value = payload[0].value
+  const value = Number(payload[0].value || 0)
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-md">
       <div className="font-semibold text-slate-900">{label}</div>
-      <div>{currency ? formatCurrency(Math.round(value)) : value}</div>
+      <div>{currency ? formatCurrency(value, 0) : value}</div>
     </div>
   )
 }
@@ -465,11 +808,7 @@ function FilterableBarChart({
   return (
     <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
-        <RechartsBarChart
-          data={data}
-          margin={{ top: 10, right: 10, left: 0, bottom: 10 }}
-          barCategoryGap="30%"
-        >
+        <RechartsBarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
           <XAxis
             dataKey="label"
             axisLine={false}
@@ -491,14 +830,9 @@ function FilterableBarChart({
             cursor={onSelect ? 'pointer' : 'default'}
           >
             {data.map((entry, index) => {
-              const active =
-                !anySelected || selectedLabels?.includes(entry.label.toLowerCase())
+              const active = !anySelected || selectedLabels?.includes(entry.label)
               return (
-                <Cell
-                  key={entry.label + index}
-                  fill={color}
-                  fillOpacity={active ? 1 : 0.35}
-                />
+                <Cell key={`${entry.label}-${index}`} fill={color} fillOpacity={active ? 1 : 0.35} />
               )
             })}
           </Bar>
@@ -508,19 +842,56 @@ function FilterableBarChart({
   )
 }
 
-function PieChart({ yesPct }: { yesPct: number }) {
-  const yes = Math.min(Math.max(yesPct, 0), 100)
-  const no = 100 - yes
+function CompletionTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: any[]
+  label?: string
+}) {
+  if (!active || !payload || !payload.length) return null
+  const value = Number(payload[0].value || 0)
   return (
-    <div
-      className="flex h-40 w-40 items-center justify-center rounded-full text-sm font-semibold text-slate-900"
-      style={{
-        background: `conic-gradient(#facc15 ${yes}%, #a855f7 0)`,
-      }}
-    >
-      <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white text-slate-900 shadow-inner">
-        {yes.toFixed(1)}% Yes
-      </div>
+    <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-md">
+      <div className="font-semibold text-slate-900">{label}</div>
+      <div>{formatPercent(value, 1)}</div>
+    </div>
+  )
+}
+
+function CompletionTrend({ data }: { data: Array<{ date: string; completionRate: number }> }) {
+  return (
+    <div className="h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <RechartsLineChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+          <CartesianGrid stroke="rgba(148, 163, 184, 0.35)" strokeDasharray="4 4" />
+          <XAxis
+            dataKey="date"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#0f172a', fontSize: 12 }}
+          />
+          <YAxis
+            domain={[0, 100]}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: '#475569', fontSize: 12 }}
+            tickFormatter={(value) => `${value}%`}
+          />
+          <RechartsTooltip content={<CompletionTooltip />} />
+          <Line type="monotone" dataKey="completionRate" stroke="#3b82f6" strokeWidth={2} />
+        </RechartsLineChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+      {message}
     </div>
   )
 }
@@ -538,12 +909,12 @@ function MapSection({
 }) {
   const map = useMap('analytics-map-instance')
 
-  const legendSet = new Set<string>(filtered.map((c) => c.day || 'Unscheduled'))
-  legendSet.add('Workshop') // always show Workshop in legend
+  const legendSet = new Set<string>(filtered.map((customer) => customer.day || 'Unscheduled'))
+  legendSet.add('Workshop')
 
   const legendDays = Array.from(legendSet).sort((a, b) => {
-    const ai = DAYS.indexOf(a)
-    const bi = DAYS.indexOf(b)
+    const ai = CUSTOMER_DAYS.indexOf(a)
+    const bi = CUSTOMER_DAYS.indexOf(b)
     if (ai === -1 && bi === -1) return a.localeCompare(b)
     if (ai === -1) return 1
     if (bi === -1) return -1
@@ -552,7 +923,7 @@ function MapSection({
 
   useEffect(() => {
     if (!map) return
-    const points = filtered.filter((c) => c.latitude != null && c.longitude != null)
+    const points = filtered.filter((customer) => customer.latitude != null && customer.longitude != null)
     if (points.length === 0) {
       map.setCenter(shopLocation)
       map.setZoom(11)
@@ -560,7 +931,9 @@ function MapSection({
     }
 
     const bounds = new google.maps.LatLngBounds()
-    points.forEach((c) => bounds.extend({ lat: c.latitude!, lng: c.longitude! }))
+    points.forEach((customer) =>
+      bounds.extend({ lat: customer.latitude as number, lng: customer.longitude as number })
+    )
 
     if (points.length === 1) {
       map.setCenter(bounds.getCenter())
@@ -582,7 +955,6 @@ function MapSection({
         gestureHandling="greedy"
         onClick={() => onSelectCustomer(null)}
       >
-        {/* Workshop / shop marker */}
         <AdvancedMarker position={shopLocation} zIndex={8000}>
           <Pin
             background={DAY_COLORS['Workshop'] || '#22c55e'}
@@ -592,22 +964,17 @@ function MapSection({
           />
         </AdvancedMarker>
 
-        {filtered.map((c) => {
-          if (c.latitude == null || c.longitude == null) return null
-          const color = DAY_COLORS[c.day || ''] || '#0ea5e9'
+        {filtered.map((customer) => {
+          if (customer.latitude == null || customer.longitude == null) return null
+          const color = DAY_COLORS[customer.day || ''] || '#0ea5e9'
           return (
             <AdvancedMarker
-              key={c.id}
-              position={{ lat: c.latitude, lng: c.longitude }}
-              zIndex={c.day === 'Workshop' ? 5000 : undefined}
-              onClick={() => onSelectCustomer(c.id)}
+              key={customer.id}
+              position={{ lat: customer.latitude, lng: customer.longitude }}
+              zIndex={customer.day === 'Workshop' ? 5000 : undefined}
+              onClick={() => onSelectCustomer(customer.id)}
             >
-              <Pin
-                background={color}
-                glyphColor="transparent"
-                borderColor="#ffffff"
-                scale={0.84}
-              />
+              <Pin background={color} glyphColor="transparent" borderColor="#ffffff" scale={0.84} />
             </AdvancedMarker>
           )
         })}
@@ -619,26 +986,26 @@ function MapSection({
         >
           <div
             className="pointer-events-auto max-w-sm rounded-lg border border-slate-200 bg-white shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-2 p-4">
               {(() => {
-                const c = filtered.find((x) => x.id === selectedCustomerId)
-                if (!c) return null
+                const customer = filtered.find((item) => item.id === selectedCustomerId)
+                if (!customer) return null
                 return (
                   <>
                     <div className="space-y-1">
                       <div className="text-sm font-semibold text-slate-900">
-                        {c.name || 'Customer'}
+                        {customer.name || 'Customer'}
                       </div>
-                      <div className="text-xs text-slate-600">{c.address}</div>
+                      <div className="text-xs text-slate-600">{customer.address}</div>
                       <div className="flex items-center gap-2 text-xs text-slate-600">
                         <Badge variant="secondary" className="bg-slate-100 text-slate-800">
-                          {c.day || 'Unscheduled'}
+                          {customer.day || 'Unscheduled'}
                         </Badge>
-                        {c.type && (
+                        {customer.type && (
                           <Badge variant="outline" className="text-slate-700">
-                            {c.type}
+                            {customer.type}
                           </Badge>
                         )}
                       </div>
@@ -647,7 +1014,7 @@ function MapSection({
                       className="text-xs text-slate-500 hover:text-slate-800"
                       onClick={() => onSelectCustomer(null)}
                     >
-                      ✕
+                      Close
                     </button>
                   </>
                 )

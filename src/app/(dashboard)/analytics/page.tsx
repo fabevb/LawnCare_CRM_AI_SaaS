@@ -18,13 +18,23 @@ export default async function AnalyticsPage() {
     )
     .is('archived_at', null)
 
+  const { data: customerMetrics } = await supabase
+    .from('customer_metrics')
+    .select('*')
+
+  const { data: routeStats } = await supabase
+    .from('route_statistics')
+    .select('*')
+
   const { data: serviceHistory } = await supabase
     .from('service_history')
-    .select('cost')
+    .select('cost, service_date')
 
   return (
     <AnalyticsDashboard
       customers={customers || []}
+      customerMetrics={customerMetrics || []}
+      routeStats={routeStats || []}
       serviceHistory={serviceHistory || []}
       shopLocation={shopLocation}
     />
